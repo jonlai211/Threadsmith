@@ -1,90 +1,186 @@
+:root {
+  --body-bg:    #0d1117;
+  --header-bg:  rgba(255,255,255,.04);
+  --surface-bg: rgba(255,255,255,.025);
+  --input-bg:   rgba(255,255,255,.04);
+  --border:     rgba(255,255,255,.08);
+  --border-sub: rgba(255,255,255,.055);
+  --text:       #e2e8f0;
+  --text-2:     #94a3b8;
+  --text-3:     #475569;
+  --btn-bd:     rgba(255,255,255,.09);
+  --btn-bg:     rgba(255,255,255,.05);
+  --btn-c:      #94a3b8;
+  --btn-bg-h:   rgba(255,255,255,.09);
+  --btn-c-h:    #cbd5e1;
+  --ph:         #334155;
+  --logo-glow:  rgba(16,185,129,.35);
+  --pri-glow:   rgba(16,185,129,.28);
+  --pri-glow-h: rgba(16,185,129,.4);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --body-bg:    #f1f5f9;
+    --header-bg:  rgba(0,0,0,.02);
+    --surface-bg: rgba(0,0,0,.025);
+    --input-bg:   #ffffff;
+    --border:     rgba(0,0,0,.1);
+    --border-sub: rgba(0,0,0,.07);
+    --text:       #0f172a;
+    --text-2:     #475569;
+    --text-3:     #94a3b8;
+    --btn-bd:     rgba(0,0,0,.12);
+    --btn-bg:     rgba(0,0,0,.04);
+    --btn-c:      #475569;
+    --btn-bg-h:   rgba(0,0,0,.07);
+    --btn-c-h:    #1e293b;
+    --ph:         #94a3b8;
+    --logo-glow:  rgba(5,150,105,.25);
+    --pri-glow:   rgba(5,150,105,.2);
+    --pri-glow-h: rgba(5,150,105,.32);
+  }
+}
+
 * { box-sizing: border-box; }
 
 body {
   width: 330px;
   margin: 0;
-  color: #1f2528;
-  background: #f7f8f5;
-  font: 13px/1.4 system-ui, -apple-system, Segoe UI, sans-serif;
+  color: var(--text);
+  background: var(--body-bg);
+  font: 13px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 header {
-  padding: 12px;
-  border-bottom: 1px solid #d9ddd4;
-  background: #ffffff;
+  padding: 14px 16px 12px;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border-sub);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.logo {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #10b981 0%, #6366f1 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font: 700 12px/1 system-ui;
+  flex-shrink: 0;
+  box-shadow: 0 0 12px var(--logo-glow);
 }
 
 h1 {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 main {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   padding: 12px;
 }
 
 p {
   margin: 0;
-  color: #596366;
+  color: var(--text-3);
+  font-size: 12px;
+  padding: 7px 10px;
+  background: var(--surface-bg);
+  border-radius: 6px;
+  border: 1px solid var(--border-sub);
 }
 
 label {
   display: grid;
   gap: 5px;
-  font-weight: 650;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text-2);
 }
 
 input {
   width: 100%;
-  border: 1px solid #c9d1cc;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 8px;
-  background: #fff;
-  color: #1f2528;
+  padding: 8px 10px;
+  background: var(--input-bg);
+  color: var(--text);
   font: inherit;
+  transition: border-color .15s, box-shadow .15s;
+  outline: none;
 }
 
+input:focus {
+  border-color: rgba(99,102,241,.55);
+  box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+}
+
+input::placeholder { color: var(--ph); }
+
 button {
-  border: 1px solid #b8c3bd;
-  border-radius: 6px;
-  padding: 9px 10px;
-  background: #fff;
-  color: #1f2528;
+  border: 1px solid var(--btn-bd);
+  border-radius: 7px;
+  padding: 9px 12px;
+  background: var(--btn-bg);
+  color: var(--btn-c);
   cursor: pointer;
-  font: 650 13px/1.2 system-ui, -apple-system, Segoe UI, sans-serif;
+  font: 600 13px/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  transition: background .15s, color .15s;
+}
+
+button:hover:not(:disabled) {
+  background: var(--btn-bg-h);
+  color: var(--btn-c-h);
 }
 
 button:disabled,
 input:disabled {
-  opacity: .55;
+  opacity: .4;
   cursor: not-allowed;
 }
 
 .primary {
-  border-color: #176f5a;
-  background: #176f5a;
+  background: linear-gradient(135deg, #059669 0%, #6366f1 140%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 0 18px var(--pri-glow);
+}
+
+.primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #047857 0%, #4f46e5 140%);
+  box-shadow: 0 0 26px var(--pri-glow-h);
   color: #fff;
 }
 
 details {
-  border: 1px solid #d3d9d3;
+  border: 1px solid var(--border-sub);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-bg);
   overflow: hidden;
 }
 
 summary {
-  padding: 9px 10px;
+  padding: 8px 12px;
   cursor: pointer;
-  color: #596366;
-  font-weight: 650;
+  color: var(--text-3);
+  font-weight: 600;
+  font-size: 12px;
   list-style-position: inside;
+  transition: color .15s;
 }
+
+summary:hover { color: var(--text-2); }
 
 .settingsBody {
   display: grid;
   gap: 9px;
-  padding: 0 10px 10px;
+  padding: 0 12px 12px;
 }

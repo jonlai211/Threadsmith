@@ -435,93 +435,166 @@
 
     root.innerHTML = `
       <style>
-        :host { color-scheme: light dark; }
+        :host {
+          --bg:      rgba(13,15,23,.94);
+          --bg-h:    rgba(255,255,255,.04);
+          --bg-s:    rgba(255,255,255,.025);
+          --bg-i:    rgba(255,255,255,.04);
+          --bd:      rgba(255,255,255,.08);
+          --bd-s:    rgba(255,255,255,.06);
+          --text:    #e2e8f0;
+          --text2:   #94a3b8;
+          --text3:   #475569;
+          --bb:      rgba(255,255,255,.09);
+          --bbg:     rgba(255,255,255,.05);
+          --bc:      #94a3b8;
+          --bbgh:    rgba(255,255,255,.09);
+          --bch:     #cbd5e1;
+          --shadow:  0 24px 64px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.04);
+          --ph:      #2d3748;
+        }
+        @media (prefers-color-scheme: light) {
+          :host {
+            --bg:    rgba(248,250,252,.96);
+            --bg-h:  rgba(0,0,0,.02);
+            --bg-s:  rgba(0,0,0,.025);
+            --bg-i:  rgba(255,255,255,.8);
+            --bd:    rgba(0,0,0,.1);
+            --bd-s:  rgba(0,0,0,.07);
+            --text:  #0f172a;
+            --text2: #475569;
+            --text3: #94a3b8;
+            --bb:    rgba(0,0,0,.12);
+            --bbg:   rgba(0,0,0,.04);
+            --bc:    #475569;
+            --bbgh:  rgba(0,0,0,.07);
+            --bch:   #1e293b;
+            --shadow:0 24px 64px rgba(0,0,0,.12),inset 0 0 0 1px rgba(0,0,0,.06);
+            --ph:    #94a3b8;
+          }
+        }
+        * { box-sizing: border-box; }
         .launcher {
           position: fixed;
-          right: 16px;
-          bottom: 18px;
+          right: 18px;
+          bottom: 20px;
           z-index: 2147483647;
-          width: 42px;
-          height: 42px;
+          width: 44px;
+          height: 44px;
           border: 0;
-          border-radius: 8px;
+          border-radius: 11px;
           color: #fff;
-          background: #176f5a;
-          box-shadow: 0 10px 28px rgba(0,0,0,.2);
+          background: linear-gradient(135deg, #10b981 0%, #6366f1 100%);
+          box-shadow: 0 4px 20px rgba(16,185,129,.45), 0 2px 8px rgba(0,0,0,.35);
           cursor: pointer;
-          font: 700 16px/1 system-ui, sans-serif;
+          font: 700 15px/1 system-ui, sans-serif;
+          transition: transform .15s, box-shadow .15s;
+        }
+        .launcher:hover {
+          transform: translateY(-1px) scale(1.05);
+          box-shadow: 0 6px 28px rgba(16,185,129,.55), 0 3px 12px rgba(0,0,0,.4);
         }
         .panel {
           position: fixed;
-          right: 16px;
-          bottom: 68px;
+          right: 18px;
+          bottom: 74px;
           z-index: 2147483647;
-          width: min(340px, calc(100vw - 32px));
+          width: min(320px, calc(100vw - 36px));
           display: none;
-          border: 1px solid rgba(127,127,127,.28);
-          border-radius: 8px;
-          background: Canvas;
-          color: CanvasText;
-          box-shadow: 0 22px 60px rgba(0,0,0,.24);
-          font: 13px/1.4 system-ui, -apple-system, Segoe UI, sans-serif;
+          border: 1px solid var(--bd);
+          border-radius: 14px;
+          background: var(--bg);
+          backdrop-filter: blur(24px) saturate(180%);
+          -webkit-backdrop-filter: blur(24px) saturate(180%);
+          color: var(--text);
+          box-shadow: var(--shadow);
+          font: 13px/1.5 system-ui, -apple-system, sans-serif;
           overflow: hidden;
         }
         .panel[data-open="true"] { display: block; }
         header {
           padding: 14px 14px 10px;
-          background: Canvas;
-          border-bottom: 1px solid rgba(127,127,127,.18);
+          background: var(--bg-h);
+          border-bottom: 1px solid var(--bd-s);
+          display: flex;
+          align-items: center;
+          gap: 8px;
         }
-        h2 { margin: 0; font-size: 15px; font-weight: 750; }
-        .subtitle { margin-top: 3px; font-size: 12px; }
-        main { padding: 12px 14px 14px; display: grid; gap: 10px; }
+        .logo {
+          width: 24px; height: 24px;
+          border-radius: 6px;
+          background: linear-gradient(135deg, #10b981, #6366f1);
+          display: flex; align-items: center; justify-content: center;
+          color: #fff; font: 700 11px/1 system-ui; flex-shrink: 0;
+        }
+        .header-text { flex: 1; min-width: 0; }
+        h2 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); }
+        .subtitle { margin-top: 1px; font-size: 11px; color: var(--text3); }
+        main { padding: 12px 14px 14px; display: grid; gap: 8px; }
         details {
-          border: 1px solid rgba(127,127,127,.22);
+          border: 1px solid var(--bd-s);
           border-radius: 8px;
-          padding: 0;
+          background: var(--bg-s);
           overflow: hidden;
         }
         summary {
-          padding: 9px 10px;
+          padding: 8px 10px;
           cursor: pointer;
-          color: color-mix(in srgb, CanvasText 70%, Canvas);
-          font-weight: 650;
+          color: var(--text3);
+          font-weight: 600;
+          font-size: 12px;
           list-style-position: inside;
         }
-        .settings-body { display: grid; gap: 9px; padding: 0 10px 10px; }
-        label { display: grid; gap: 5px; color: color-mix(in srgb, CanvasText 78%, Canvas); font-weight: 650; }
+        .settings-body { display: grid; gap: 8px; padding: 0 10px 10px; }
+        label { display: grid; gap: 4px; color: var(--text2); font-weight: 600; font-size: 12px; }
         input {
           width: 100%;
-          box-sizing: border-box;
-          border: 1px solid rgba(127,127,127,.35);
+          border: 1px solid var(--bd);
           border-radius: 6px;
-          padding: 8px;
-          background: Canvas;
-          color: CanvasText;
+          padding: 7px 9px;
+          background: var(--bg-i);
+          color: var(--text);
           font: inherit;
+          outline: none;
         }
+        input::placeholder { color: var(--ph); }
+        input:focus { border-color: rgba(99,102,241,.5); box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
         button {
-          border: 1px solid rgba(127,127,127,.32);
-          border-radius: 6px;
-          padding: 9px 10px;
-          background: Canvas;
-          color: CanvasText;
+          border: 1px solid var(--bb);
+          border-radius: 7px;
+          padding: 8px 12px;
+          background: var(--bbg);
+          color: var(--bc);
           cursor: pointer;
-          font: 650 13px/1.2 system-ui, -apple-system, Segoe UI, sans-serif;
+          font: 600 13px/1.2 system-ui, sans-serif;
+          transition: background .15s, color .15s;
         }
-        .primary { background: #176f5a; border-color: #176f5a; color: white; }
-        .secondary { color: color-mix(in srgb, CanvasText 78%, Canvas); }
-        .muted { color: color-mix(in srgb, CanvasText 58%, Canvas); }
+        button:hover { background: var(--bbgh); color: var(--bch); }
+        .primary {
+          background: linear-gradient(135deg, #059669 0%, #6366f1 140%);
+          border-color: transparent; color: #fff;
+          box-shadow: 0 0 16px rgba(16,185,129,.3);
+        }
+        .primary:hover {
+          background: linear-gradient(135deg, #047857 0%, #4f46e5 140%);
+          box-shadow: 0 0 22px rgba(16,185,129,.42);
+          color: #fff;
+        }
+        .stop { display: none; color: var(--text3); }
+        .muted { color: var(--text3); font-size: 12px; }
       </style>
       <button class="launcher" title="ChatGPT Session Renamer">R</button>
       <section class="panel" aria-label="ChatGPT Session Renamer">
         <header>
-          <h2>Title Review</h2>
-          <div class="muted subtitle">Preview AI titles before applying them.</div>
+          <div class="logo">R</div>
+          <div class="header-text">
+            <h2>Title Review</h2>
+            <div class="subtitle">Preview AI titles before applying.</div>
+          </div>
         </header>
         <main>
           <button class="primary start">Review Titles</button>
-          <button class="secondary stop">Stop Current Run</button>
+          <button class="stop">Stop</button>
           <details>
             <summary>Settings</summary>
             <div class="settings-body">
@@ -563,6 +636,12 @@
     root.querySelector(".deepseek-model").value = settings.deepseekModel || "deepseek-v4-flash";
   }
 
+  function setPanelRunning(running) {
+    const panelRoot = document.getElementById(APP_ID)?.shadowRoot;
+    if (!panelRoot) return;
+    panelRoot.querySelector(".stop").style.display = running ? "" : "none";
+  }
+
   function launchRenameWorkflow() {
     const existing = document.getElementById("cso-rename-workflow");
     existing?.remove();
@@ -572,132 +651,183 @@
     overlay.id = "cso-rename-workflow";
     overlay.innerHTML = `
       <style>
+        * { box-sizing: border-box; }
+        #cso-rename-workflow {
+          --bg:     rgba(13,15,23,.97);
+          --bg-h:   rgba(255,255,255,.04);
+          --bg-s:   rgba(255,255,255,.018);
+          --bg-i:   rgba(255,255,255,.04);
+          --bd:     rgba(255,255,255,.08);
+          --bd-s:   rgba(255,255,255,.06);
+          --text:   #e2e8f0;
+          --text2:  #94a3b8;
+          --text3:  #475569;
+          --old-c:  #94a3b8;
+          --bb:     rgba(255,255,255,.09);
+          --bbg:    rgba(255,255,255,.05);
+          --bc:     #94a3b8;
+          --bbgh:   rgba(255,255,255,.09);
+          --bch:    #cbd5e1;
+          --row-bg: rgba(255,255,255,.025);
+          --row-bh: rgba(255,255,255,.042);
+          --row-bd: rgba(255,255,255,.06);
+          --row-bdh:rgba(255,255,255,.09);
+          --shadow: 0 32px 100px rgba(0,0,0,.65),inset 0 0 0 1px rgba(255,255,255,.04);
+          --ovl:    rgba(5,8,15,.72);
+          --ph:     #2d3748;
+        }
+        @media (prefers-color-scheme: light) {
+          #cso-rename-workflow {
+            --bg:     rgba(248,250,252,.97);
+            --bg-h:   rgba(0,0,0,.02);
+            --bg-s:   rgba(0,0,0,.018);
+            --bg-i:   #ffffff;
+            --bd:     rgba(0,0,0,.1);
+            --bd-s:   rgba(0,0,0,.07);
+            --text:   #0f172a;
+            --text2:  #475569;
+            --text3:  #94a3b8;
+            --old-c:  #64748b;
+            --bb:     rgba(0,0,0,.12);
+            --bbg:    rgba(0,0,0,.04);
+            --bc:     #475569;
+            --bbgh:   rgba(0,0,0,.07);
+            --bch:    #1e293b;
+            --row-bg: rgba(0,0,0,.018);
+            --row-bh: rgba(0,0,0,.035);
+            --row-bd: rgba(0,0,0,.08);
+            --row-bdh:rgba(0,0,0,.14);
+            --shadow: 0 24px 80px rgba(0,0,0,.12),0 4px 16px rgba(0,0,0,.06),inset 0 0 0 1px rgba(0,0,0,.07);
+            --ovl:    rgba(15,23,42,.4);
+            --ph:     #94a3b8;
+          }
+        }
         #cso-rename-workflow {
           position: fixed;
           inset: 0;
           z-index: 2147483647;
           display: grid;
           place-items: center;
-          background: rgba(15, 18, 20, .42);
-          color: CanvasText;
-          font: 13px/1.4 system-ui, -apple-system, Segoe UI, sans-serif;
+          background: var(--ovl);
+          backdrop-filter: blur(6px);
+          -webkit-backdrop-filter: blur(6px);
+          font: 13px/1.5 system-ui, -apple-system, sans-serif;
+          color: var(--text);
         }
         #cso-rename-workflow .box {
-          width: min(920px, calc(100vw - 32px));
-          max-height: min(780px, calc(100vh - 32px));
+          width: min(960px, calc(100vw - 32px));
+          max-height: min(800px, calc(100vh - 32px));
           display: grid;
           grid-template-rows: auto auto 1fr auto;
-          border-radius: 8px;
-          border: 1px solid rgba(127,127,127,.3);
-          background: Canvas;
+          border-radius: 16px;
+          border: 1px solid var(--bd);
+          background: var(--bg);
+          backdrop-filter: blur(24px) saturate(180%);
           overflow: hidden;
-          box-shadow: 0 24px 80px rgba(0,0,0,.28);
+          box-shadow: var(--shadow);
+          animation: boxIn .18s cubic-bezier(.16,1,.3,1) both;
         }
-        #cso-rename-workflow header, #cso-rename-workflow footer {
-          padding: 14px 18px;
-          border-bottom: 1px solid rgba(127,127,127,.2);
+        @keyframes boxIn {
+          from { opacity: 0; transform: scale(.97) translateY(8px); }
+          to   { opacity: 1; transform: scale(1)   translateY(0); }
         }
-        #cso-rename-workflow footer {
-          border-top: 1px solid rgba(127,127,127,.2);
-          border-bottom: 0;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 8px;
-          background: color-mix(in srgb, CanvasText 3%, Canvas);
+        #cso-rename-workflow header {
+          padding: 18px 20px 14px;
+          background: var(--bg-h);
+          border-bottom: 1px solid var(--bd-s);
+          display: flex; align-items: center; gap: 12px;
         }
-        #cso-rename-workflow h2 { margin: 0; font-size: 18px; line-height: 1.2; }
-        #cso-rename-workflow .summary { margin-top: 3px; }
+        #cso-rename-workflow .header-icon {
+          width: 32px; height: 32px; border-radius: 8px;
+          background: linear-gradient(135deg, #10b981, #6366f1);
+          display: flex; align-items: center; justify-content: center;
+          color: #fff; font: 700 14px/1 system-ui; flex-shrink: 0;
+          box-shadow: 0 0 16px rgba(16,185,129,.4);
+        }
+        #cso-rename-workflow .header-text { flex: 1; min-width: 0; }
+        #cso-rename-workflow h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--text); line-height: 1.2; }
+        #cso-rename-workflow .summary { margin-top: 3px; font-size: 12px; color: var(--text3); }
         #cso-rename-workflow .tools {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          padding: 10px 18px;
-          background: color-mix(in srgb, CanvasText 2%, Canvas);
+          display: flex; flex-wrap: wrap; gap: 6px;
+          padding: 10px 20px;
+          background: var(--bg-s);
+          border-bottom: 1px solid var(--bd-s);
         }
         #cso-rename-workflow .list {
-          overflow: auto;
-          padding: 10px 18px 14px;
-          display: grid;
-          gap: 8px;
-          align-content: start;
+          overflow: auto; padding: 12px 20px 16px;
+          display: grid; gap: 6px; align-content: start;
         }
+        #cso-rename-workflow .list::-webkit-scrollbar { width: 4px; }
+        #cso-rename-workflow .list::-webkit-scrollbar-track { background: transparent; }
+        #cso-rename-workflow .list::-webkit-scrollbar-thumb { background: var(--bd); border-radius: 4px; }
         #cso-rename-workflow .row {
           display: grid;
-          grid-template-columns: auto minmax(190px, .95fr) minmax(260px, 1.25fr) minmax(96px, auto);
-          gap: 10px;
-          align-items: center;
+          grid-template-columns: 18px minmax(180px,.9fr) minmax(240px,1.2fr) minmax(90px,auto);
+          gap: 10px; align-items: center;
           padding: 10px 12px;
-          border: 1px solid rgba(127,127,127,.2);
-          border-radius: 8px;
-          background: Canvas;
+          border: 1px solid var(--row-bd);
+          border-radius: 9px;
+          background: var(--row-bg);
+          transition: background .12s, border-color .12s;
         }
-        #cso-rename-workflow .row input[type="checkbox"] {
-          width: 18px;
-          height: 18px;
-          margin: 0;
-        }
+        #cso-rename-workflow .row:hover { background: var(--row-bh); border-color: var(--row-bdh); }
+        #cso-rename-workflow .row input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: #10b981; }
         #cso-rename-workflow .old {
-          min-width: 0;
-          font-weight: 700;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          min-width: 0; font-weight: 600; font-size: 12.5px; color: var(--old-c);
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
         }
         #cso-rename-workflow input[type="text"] {
-          width: 100%;
-          box-sizing: border-box;
-          border: 1px solid rgba(127,127,127,.35);
-          border-radius: 6px;
-          padding: 9px 10px;
-          background: color-mix(in srgb, CanvasText 2%, Canvas);
-          color: CanvasText;
-          font: inherit;
+          width: 100%; border: 1px solid var(--bd); border-radius: 6px;
+          padding: 7px 9px; background: var(--bg-i); color: var(--text);
+          font: inherit; outline: none; transition: border-color .15s, box-shadow .15s;
         }
-        #cso-rename-workflow input[type="text"]:placeholder-shown {
-          color: color-mix(in srgb, CanvasText 45%, Canvas);
+        #cso-rename-workflow input[type="text"]:focus {
+          border-color: rgba(99,102,241,.5);
+          box-shadow: 0 0 0 3px rgba(99,102,241,.1);
         }
+        #cso-rename-workflow input[type="text"]::placeholder { color: var(--ph); }
         #cso-rename-workflow button {
-          border: 1px solid rgba(127,127,127,.35);
-          border-radius: 6px;
-          padding: 8px 11px;
-          background: Canvas;
-          color: CanvasText;
-          cursor: pointer;
-          font: 650 13px/1.2 system-ui, -apple-system, Segoe UI, sans-serif;
+          border: 1px solid var(--bb); border-radius: 7px;
+          padding: 7px 12px; background: var(--bbg); color: var(--bc);
+          cursor: pointer; font: 600 12px/1.2 system-ui;
+          transition: background .15s, color .15s; white-space: nowrap;
         }
-        #cso-rename-workflow button:disabled {
-          opacity: .55;
-          cursor: not-allowed;
+        #cso-rename-workflow button:hover:not(:disabled) { background: var(--bbgh); color: var(--bch); }
+        #cso-rename-workflow button:disabled { opacity: .4; cursor: not-allowed; }
+        #cso-rename-workflow footer {
+          padding: 12px 20px; border-top: 1px solid var(--bd-s);
+          display: flex; justify-content: space-between; align-items: center; gap: 8px;
+          background: var(--bg-s);
         }
         #cso-rename-workflow footer > div { display: flex; gap: 8px; }
-        #cso-rename-workflow .primary { background: #176f5a; color: white; border-color: #176f5a; }
+        #cso-rename-workflow .primary {
+          background: linear-gradient(135deg, #059669 0%, #6366f1 140%);
+          border-color: transparent; color: #fff;
+          padding: 8px 16px; font-size: 13px;
+          box-shadow: 0 0 18px rgba(16,185,129,.32);
+        }
+        #cso-rename-workflow .primary:hover:not(:disabled) {
+          background: linear-gradient(135deg, #047857 0%, #4f46e5 140%);
+          box-shadow: 0 0 26px rgba(16,185,129,.44);
+          color: #fff;
+        }
+        #cso-rename-workflow .stop-workflow { display: none; }
         #cso-rename-workflow .status {
-          justify-self: end;
-          max-width: 160px;
-          border-radius: 999px;
-          padding: 3px 8px;
-          background: color-mix(in srgb, CanvasText 7%, Canvas);
-          color: color-mix(in srgb, CanvasText 62%, Canvas);
-          font-size: 12px;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
+          justify-self: end; max-width: 160px; border-radius: 999px;
+          padding: 3px 9px; background: var(--bbg); color: var(--bc);
+          font: 600 11px/1.5 system-ui; white-space: nowrap;
+          overflow: hidden; text-overflow: ellipsis; border: 1px solid var(--bb);
         }
-        #cso-rename-workflow .summary {
-          max-width: none;
-          padding: 0;
-          border-radius: 0;
-          background: transparent;
-          color: color-mix(in srgb, CanvasText 58%, Canvas);
-        }
-        #cso-rename-workflow .error { background: #fdecea; color: #a83b32; }
-        #cso-rename-workflow .ok { background: #e7f5ef; color: #176f5a; }
+        #cso-rename-workflow .error { background: rgba(239,68,68,.12); color: #f87171; border-color: rgba(239,68,68,.22); }
+        #cso-rename-workflow .ok    { background: rgba(16,185,129,.12); color: #34d399; border-color: rgba(16,185,129,.22); }
       </style>
       <section class="box" role="dialog" aria-modal="true" aria-label="Rename visible sessions">
         <header>
-          <h2>Review Titles</h2>
-          <div class="status summary"></div>
+          <div class="header-icon">R</div>
+          <div class="header-text">
+            <h2>Review Titles</h2>
+            <div class="summary"></div>
+          </div>
         </header>
         <div class="tools">
           <button class="select-all">Select all</button>
@@ -708,6 +838,7 @@
         <footer>
           <button class="cancel">Close</button>
           <div>
+            <button class="stop-workflow">Stop</button>
             <button class="generate primary">Generate Preview</button>
             <button class="apply" disabled>Apply Selected</button>
           </div>
@@ -762,12 +893,25 @@
       rows().forEach((row, index) => (row.querySelector('input[type="checkbox"]').checked = index < 5));
       updateCount();
     });
-    overlay.querySelector(".cancel").addEventListener("click", () => overlay.remove());
+    const closeOverlay = () => {
+      overlay.remove();
+      document.removeEventListener("keydown", onEscKey);
+      setPanelRunning(false);
+    };
+    const onEscKey = (e) => { if (e.key === "Escape") closeOverlay(); };
+    document.addEventListener("keydown", onEscKey);
+
+    overlay.querySelector(".cancel").addEventListener("click", closeOverlay);
+    overlay.querySelector(".stop-workflow").addEventListener("click", () => { stopRequested = true; });
     overlay.querySelector(".generate").addEventListener("click", async () => {
       await generatePreview(selectedRows(), setSummary, setStatus, overlay);
     });
     overlay.querySelector(".apply").addEventListener("click", async () => {
-      await applyPreview(selectedRows(), setSummary, setStatus);
+      await applyPreview(selectedRows(), setSummary, setStatus, overlay);
+    });
+    overlay.querySelector(".list").addEventListener("input", () => {
+      const hasTitle = rows().some((row) => normalizeText(row.querySelector(".title").value));
+      overlay.querySelector(".apply").disabled = !hasTitle;
     });
 
     document.documentElement.append(overlay);
@@ -786,6 +930,10 @@
       setSummary("Add a DeepSeek API key in the floating panel or extension popup first.");
       return;
     }
+
+    setPanelRunning(true);
+    overlay.querySelector(".stop-workflow").style.display = "";
+    overlay.querySelector(".generate").disabled = true;
 
     let generated = 0;
     let repaired = 0;
@@ -813,15 +961,23 @@
       }
     }
 
-    overlay.querySelector(".apply").disabled = !rows.some((row) => row.dataset.ready === "true");
+    const hasTitle = rows.some((row) => normalizeText(row.querySelector(".title").value));
+    overlay.querySelector(".apply").disabled = !hasTitle;
+    overlay.querySelector(".stop-workflow").style.display = "none";
+    overlay.querySelector(".generate").disabled = false;
+    setPanelRunning(false);
     setSummary(`Preview complete: ${generated}/${rows.length} ready${repaired ? `, ${repaired} repaired` : ""}${skipped ? `, ${skipped} skipped` : ""}.`);
   }
 
-  async function applyPreview(rows, setSummary, setStatus) {
+  async function applyPreview(rows, setSummary, setStatus, overlay) {
     stopRequested = false;
-    const readyRows = rows.filter((row) => row.dataset.ready === "true" && normalizeText(row.querySelector(".title").value));
+    const readyRows = rows.filter((row) => normalizeText(row.querySelector(".title").value));
     let renamed = 0;
     let failed = 0;
+
+    setPanelRunning(true);
+    overlay.querySelector(".stop-workflow").style.display = "";
+    overlay.querySelector(".apply").disabled = true;
 
     for (const [index, row] of readyRows.entries()) {
       if (stopRequested) {
@@ -844,6 +1000,9 @@
       }
     }
 
+    overlay.querySelector(".stop-workflow").style.display = "none";
+    overlay.querySelector(".apply").disabled = false;
+    setPanelRunning(false);
     setSummary(`Apply complete: ${renamed}/${readyRows.length} renamed${failed ? `, ${failed} failed` : ""}.`);
   }
 
