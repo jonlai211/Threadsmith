@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "ChatGPT Session Renamer",
+  "description": "Preview and apply AI-generated Chinese titles for visible ChatGPT sessions.",
+  "version": "0.2.0",
+  "permissions": ["activeTab", "storage", "tabs"],
+  "host_permissions": ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://api.deepseek.com/*"],
+  "action": {
+    "default_title": "ChatGPT Session Renamer",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"],
+      "js": ["content_script.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Title Review</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <header>
+      <h1>Title Review</h1>
+    </header>
+    <main>
+      <p id="status">Reading current tab...</p>
+      <button id="startWorkflow" class="primary">Review Titles</button>
+      <button id="stopRename">Stop Current Run</button>
+      <details>
+        <summary>Settings</summary>
+        <div class="settingsBody">
+          <label>
+            Provider key
+            <input id="deepseekKey" type="password" placeholder="sk-...">
+          </label>
+          <label>
+            Model
+            <input id="deepseekModel" placeholder="deepseek-v4-flash">
+          </label>
+          <button id="saveSettings">Save</button>
+        </div>
+      </details>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

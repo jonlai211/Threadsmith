@@ -1,0 +1,13 @@
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Local browser/build artifacts
+dist/
+build/
+node_modules/
+
+# Keep API keys in chrome.storage.local, never in source files.
+.env
+.env.*
