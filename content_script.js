@@ -2,7 +2,7 @@
   // Runs in the ChatGPT page. Owns the floating UI, title review modal,
   // conversation extraction, AI title generation, and native ChatGPT rename flow.
   const SETTINGS_KEY = "cso.settings";
-  const APP_ID = "chatgpt-session-renamer-root";
+  const APP_ID = "threadsmith-root";
   const SESSION_RE = /\/c\/([a-zA-Z0-9-]+)/;
   const BAD_UI_TITLE_RE = /(Extended can make|ChatGPT can make|can make mistakes|Ask anything|Check important info|Create an image|Write or edit|Look something up|Search chats|New chat|Recents)/i;
   const BAD_AI_TITLE_RE = /(AI\s*免责声明|AI\s*免责申明|免责声明|免责申明|作为AI|作为一个AI|无法提供|不能提供|不能替代|consult|disclaimer)/i;
@@ -583,12 +583,12 @@
         .stop { display: none; color: var(--text3); }
         .muted { color: var(--text3); font-size: 12px; }
       </style>
-      <button class="launcher" title="ChatGPT Session Renamer">R</button>
-      <section class="panel" aria-label="ChatGPT Session Renamer">
+      <button class="launcher" title="Threadsmith">T</button>
+      <section class="panel" aria-label="Threadsmith">
         <header>
-          <div class="logo">R</div>
+          <div class="logo">T</div>
           <div class="header-text">
-            <h2>Title Review</h2>
+            <h2>Threadsmith</h2>
             <div class="subtitle">Preview AI titles before applying.</div>
           </div>
         </header>
@@ -823,7 +823,7 @@
       </style>
       <section class="box" role="dialog" aria-modal="true" aria-label="Rename visible sessions">
         <header>
-          <div class="header-icon">R</div>
+          <div class="header-icon">T</div>
           <div class="header-text">
             <h2>Review Titles</h2>
             <div class="summary"></div>

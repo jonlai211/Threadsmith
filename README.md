@@ -1,6 +1,6 @@
-# ChatGPT Session Renamer
+# Threadsmith
 
-Chrome extension MVP for renaming visible ChatGPT sessions with AI-generated Chinese titles.
+Shape messy ChatGPT history into clear, searchable titles.
 
 ## Files
 
