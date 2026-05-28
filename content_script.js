@@ -1,6 +1,6 @@
 (function initChatGptSessionRenamer() {
-  // Runs in the ChatGPT page. Owns the floating UI, title review modal,
-  // conversation extraction, AI title generation, and native ChatGPT rename flow.
+  // Runs in the ChatGPT page. Owns the floating card UI, conversation
+  // extraction, AI title generation, and native ChatGPT rename flow.
   const SETTINGS_KEY = "cso.settings";
   const APP_ID = "threadsmith-root";
   const SESSION_RE = /\/c\/([a-zA-Z0-9-]+)/;
@@ -92,7 +92,7 @@
     const clean = normalizeText(title);
     return !clean ||
       clean.length < 4 ||
-      /[�]{1,}|(\?\?)/.test(clean) ||
+      /[^]{1,}|(\?\?)/.test(clean) ||
       BAD_AI_TITLE_RE.test(clean) ||
       BAD_UI_TITLE_RE.test(clean) ||
       looksLikeSentenceTitle(clean);
@@ -425,6 +425,49 @@
     return { id, title: newTitle };
   }
 
+  // ─── Card UI helpers ──────────────────────────────────────────────────────
+
+  function cardRoot() {
+    return document.getElementById(APP_ID)?.shadowRoot ?? null;
+  }
+
+  function allRows(root) {
+    return [...root.querySelectorAll(".session-list .row")];
+  }
+
+  function selectedRows(root) {
+    return allRows(root).filter((r) => r.querySelector('input[type="checkbox"]').checked);
+  }
+
+  function switchPhase(root, phase) {
+    root.querySelector(".card").dataset.phase = phase;
+  }
+
+  function setCardSummary(root, text) {
+    root.querySelector(".wf-summary").textContent = text;
+  }
+
+  function setRowStatus(row, text, cls = "") {
+    const badge = row.querySelector(".row-status");
+    badge.className = `row-status ${cls}`.trim();
+    badge.textContent = text;
+  }
+
+  function updateWorkflowCount(root) {
+    const total = allRows(root).length;
+    const sel = selectedRows(root).length;
+    setCardSummary(root, `${sel} / ${total} selected`);
+  }
+
+  function updateIdleCount(root) {
+    const n = visibleSidebarSessions().length;
+    root.querySelector(".session-count").textContent = n
+      ? `${n} sessions visible in sidebar`
+      : "No sessions visible — scroll the ChatGPT sidebar";
+  }
+
+  // ─── Card creation ────────────────────────────────────────────────────────
+
   function createApp() {
     if (document.getElementById(APP_ID)) return;
 
@@ -436,73 +479,80 @@
     root.innerHTML = `
       <style>
         :host {
-          --bg:      rgba(13,15,23,.94);
+          --bg:      rgba(13,15,23,.95);
           --bg-h:    rgba(255,255,255,.04);
-          --bg-s:    rgba(255,255,255,.025);
-          --bg-i:    rgba(255,255,255,.04);
+          --bg-s:    rgba(255,255,255,.02);
+          --bg-i:    rgba(255,255,255,.05);
           --bd:      rgba(255,255,255,.08);
           --bd-s:    rgba(255,255,255,.06);
           --text:    #e2e8f0;
           --text2:   #94a3b8;
           --text3:   #475569;
+          --old-c:   #64748b;
           --bb:      rgba(255,255,255,.09);
           --bbg:     rgba(255,255,255,.05);
           --bc:      #94a3b8;
           --bbgh:    rgba(255,255,255,.09);
           --bch:     #cbd5e1;
+          --row-bg:  rgba(255,255,255,.025);
+          --row-bh:  rgba(255,255,255,.042);
+          --row-bd:  rgba(255,255,255,.06);
+          --row-bdh: rgba(255,255,255,.1);
           --shadow:  0 24px 64px rgba(0,0,0,.55),inset 0 0 0 1px rgba(255,255,255,.04);
           --ph:      #2d3748;
         }
         @media (prefers-color-scheme: light) {
           :host {
-            --bg:    rgba(248,250,252,.96);
-            --bg-h:  rgba(0,0,0,.02);
-            --bg-s:  rgba(0,0,0,.025);
-            --bg-i:  rgba(255,255,255,.8);
-            --bd:    rgba(0,0,0,.1);
-            --bd-s:  rgba(0,0,0,.07);
-            --text:  #0f172a;
-            --text2: #475569;
-            --text3: #94a3b8;
-            --bb:    rgba(0,0,0,.12);
-            --bbg:   rgba(0,0,0,.04);
-            --bc:    #475569;
-            --bbgh:  rgba(0,0,0,.07);
-            --bch:   #1e293b;
-            --shadow:0 24px 64px rgba(0,0,0,.12),inset 0 0 0 1px rgba(0,0,0,.06);
-            --ph:    #94a3b8;
+            --bg:      rgba(248,250,252,.97);
+            --bg-h:    rgba(0,0,0,.02);
+            --bg-s:    rgba(0,0,0,.02);
+            --bg-i:    #ffffff;
+            --bd:      rgba(0,0,0,.1);
+            --bd-s:    rgba(0,0,0,.07);
+            --text:    #0f172a;
+            --text2:   #475569;
+            --text3:   #94a3b8;
+            --old-c:   #64748b;
+            --bb:      rgba(0,0,0,.12);
+            --bbg:     rgba(0,0,0,.04);
+            --bc:      #475569;
+            --bbgh:    rgba(0,0,0,.07);
+            --bch:     #1e293b;
+            --row-bg:  rgba(0,0,0,.018);
+            --row-bh:  rgba(0,0,0,.035);
+            --row-bd:  rgba(0,0,0,.08);
+            --row-bdh: rgba(0,0,0,.15);
+            --shadow:  0 24px 64px rgba(0,0,0,.12),inset 0 0 0 1px rgba(0,0,0,.06);
+            --ph:      #94a3b8;
           }
         }
+
         * { box-sizing: border-box; }
+
+        /* ── Launcher ── */
         .launcher {
-          position: fixed;
-          right: 18px;
-          bottom: 20px;
+          position: fixed; right: 18px; bottom: 20px;
           z-index: 2147483647;
-          width: 44px;
-          height: 44px;
-          border: 0;
-          border-radius: 11px;
-          color: #fff;
+          width: 44px; height: 44px; border: 0; border-radius: 11px;
           background: linear-gradient(135deg, #10b981 0%, #6366f1 100%);
-          box-shadow: 0 4px 20px rgba(16,185,129,.45), 0 2px 8px rgba(0,0,0,.35);
+          color: #fff; font: 700 15px/1 system-ui;
+          box-shadow: 0 4px 20px rgba(16,185,129,.45), 0 2px 8px rgba(0,0,0,.3);
           cursor: pointer;
-          font: 700 15px/1 system-ui, sans-serif;
           transition: transform .15s, box-shadow .15s;
         }
         .launcher:hover {
           transform: translateY(-1px) scale(1.05);
-          box-shadow: 0 6px 28px rgba(16,185,129,.55), 0 3px 12px rgba(0,0,0,.4);
+          box-shadow: 0 6px 28px rgba(16,185,129,.55), 0 3px 12px rgba(0,0,0,.35);
         }
-        .panel {
-          position: fixed;
-          right: 18px;
-          bottom: 74px;
+
+        /* ── Card ── */
+        .card {
+          position: fixed; right: 18px; bottom: 74px;
           z-index: 2147483647;
-          width: min(320px, calc(100vw - 36px));
-          display: none;
-          border: 1px solid var(--bd);
-          border-radius: 14px;
+          width: 360px;
+          display: none; flex-direction: column;
+          max-height: min(560px, calc(100vh - 100px));
+          border: 1px solid var(--bd); border-radius: 14px;
           background: var(--bg);
           backdrop-filter: blur(24px) saturate(180%);
           -webkit-backdrop-filter: blur(24px) saturate(180%);
@@ -511,108 +561,224 @@
           font: 13px/1.5 system-ui, -apple-system, sans-serif;
           overflow: hidden;
         }
-        .panel[data-open="true"] { display: block; }
-        header {
-          padding: 14px 14px 10px;
+        .card[data-open="true"] { display: flex; }
+
+        /* Phase visibility */
+        .card[data-phase="idle"] .tools-bar,
+        .card[data-phase="idle"] .session-list,
+        .card[data-phase="idle"] .wf-footer { display: none; }
+        .card[data-phase="workflow"] .idle-body { display: none; }
+
+        /* ── Card header ── */
+        .card-head {
+          display: flex; align-items: center; gap: 8px;
+          padding: 12px 12px 10px;
           background: var(--bg-h);
           border-bottom: 1px solid var(--bd-s);
-          display: flex;
-          align-items: center;
-          gap: 8px;
+          flex-shrink: 0;
         }
         .logo {
-          width: 24px; height: 24px;
-          border-radius: 6px;
+          width: 24px; height: 24px; border-radius: 6px;
           background: linear-gradient(135deg, #10b981, #6366f1);
           display: flex; align-items: center; justify-content: center;
           color: #fff; font: 700 11px/1 system-ui; flex-shrink: 0;
         }
-        .header-text { flex: 1; min-width: 0; }
-        h2 { margin: 0; font-size: 14px; font-weight: 600; color: var(--text); }
-        .subtitle { margin-top: 1px; font-size: 11px; color: var(--text3); }
-        main { padding: 12px 14px 14px; display: grid; gap: 8px; }
-        details {
-          border: 1px solid var(--bd-s);
-          border-radius: 8px;
+        .head-info { flex: 1; min-width: 0; }
+        .brand { font-size: 13px; font-weight: 600; color: var(--text); }
+        .tagline { font-size: 10.5px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .close-btn {
+          border: none; border-radius: 5px; padding: 0;
+          width: 22px; height: 22px; flex-shrink: 0;
+          background: transparent; color: var(--text3);
+          cursor: pointer; font: 15px/1 system-ui;
+          display: flex; align-items: center; justify-content: center;
+          transition: background .12s, color .12s;
+        }
+        .close-btn:hover { background: var(--bg-s); color: var(--text); }
+
+        /* ── Idle body ── */
+        .idle-body { padding: 12px; display: grid; gap: 8px; flex-shrink: 0; }
+        .session-count { font-size: 12px; color: var(--text3); }
+        .feedback { font-size: 12px; color: var(--text3); }
+
+        /* ── Tools bar ── */
+        .tools-bar {
+          display: flex; gap: 5px; flex-wrap: wrap;
+          padding: 7px 10px;
           background: var(--bg-s);
-          overflow: hidden;
+          border-bottom: 1px solid var(--bd-s);
+          flex-shrink: 0;
         }
-        summary {
+        .tools-bar .spacer { flex: 1; }
+
+        /* ── Session list ── */
+        .session-list {
+          flex: 1; overflow-y: auto; min-height: 0;
           padding: 8px 10px;
-          cursor: pointer;
-          color: var(--text3);
-          font-weight: 600;
-          font-size: 12px;
-          list-style-position: inside;
+          display: flex; flex-direction: column; gap: 4px;
         }
-        .settings-body { display: grid; gap: 8px; padding: 0 10px 10px; }
-        label { display: grid; gap: 4px; color: var(--text2); font-weight: 600; font-size: 12px; }
-        input {
-          width: 100%;
-          border: 1px solid var(--bd);
-          border-radius: 6px;
+        .session-list::-webkit-scrollbar { width: 3px; }
+        .session-list::-webkit-scrollbar-track { background: transparent; }
+        .session-list::-webkit-scrollbar-thumb { background: var(--bd); border-radius: 3px; }
+
+        /* ── Row ── */
+        .row {
+          display: grid;
+          grid-template-columns: 15px 1fr auto;
+          gap: 4px 7px;
+          align-items: start;
           padding: 7px 9px;
-          background: var(--bg-i);
-          color: var(--text);
-          font: inherit;
-          outline: none;
+          border: 1px solid var(--row-bd); border-radius: 8px;
+          background: var(--row-bg);
+          transition: background .1s, border-color .1s;
         }
-        input::placeholder { color: var(--ph); }
-        input:focus { border-color: rgba(99,102,241,.5); box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+        .row:hover { background: var(--row-bh); border-color: var(--row-bdh); }
+        .row input[type="checkbox"] {
+          grid-column: 1; grid-row: 1;
+          width: 14px; height: 14px; margin: 0; margin-top: 1px;
+          accent-color: #10b981;
+        }
+        .row-old {
+          grid-column: 2; grid-row: 1;
+          font-size: 12px; color: var(--old-c);
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .row-status {
+          grid-column: 3; grid-row: 1;
+          border-radius: 999px; padding: 2px 7px;
+          background: var(--bbg); color: var(--bc);
+          font: 600 10.5px/1.5 system-ui;
+          white-space: nowrap; border: 1px solid var(--bb);
+          align-self: center;
+        }
+        .row-status.ok    { background: rgba(16,185,129,.12); color: #34d399; border-color: rgba(16,185,129,.22); }
+        .row-status.error { background: rgba(239,68,68,.12);  color: #f87171; border-color: rgba(239,68,68,.22); }
+        .row-title-wrap {
+          grid-column: 1 / 4; grid-row: 2;
+          display: none; padding-top: 4px;
+        }
+        .row.has-title .row-title-wrap { display: block; }
+        .row-title-wrap input {
+          width: 100%; border: 1px solid var(--bd); border-radius: 5px;
+          padding: 5px 7px; background: var(--bg-i); color: var(--text);
+          font: inherit; outline: none;
+          transition: border-color .15s, box-shadow .15s;
+        }
+        .row-title-wrap input:focus {
+          border-color: rgba(99,102,241,.5);
+          box-shadow: 0 0 0 2px rgba(99,102,241,.1);
+        }
+        .row-title-wrap input::placeholder { color: var(--ph); }
+
+        .no-sessions { padding: 20px 12px; text-align: center; color: var(--text3); font-size: 12px; }
+
+        /* ── Workflow footer ── */
+        .wf-footer {
+          display: flex; align-items: center; gap: 8px;
+          padding: 9px 10px;
+          border-top: 1px solid var(--bd-s);
+          background: var(--bg-s);
+          flex-shrink: 0;
+        }
+        .wf-summary { font-size: 12px; color: var(--text3); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .wf-actions { display: flex; gap: 5px; flex-shrink: 0; }
+        .wf-stop { display: none; }
+
+        /* ── All buttons ── */
         button {
-          border: 1px solid var(--bb);
-          border-radius: 7px;
-          padding: 8px 12px;
-          background: var(--bbg);
-          color: var(--bc);
-          cursor: pointer;
-          font: 600 13px/1.2 system-ui, sans-serif;
-          transition: background .15s, color .15s;
+          border: 1px solid var(--bb); border-radius: 6px;
+          padding: 6px 10px; background: var(--bbg); color: var(--bc);
+          cursor: pointer; font: 600 12px/1.2 system-ui;
+          transition: background .15s, color .15s; white-space: nowrap;
         }
         button:hover { background: var(--bbgh); color: var(--bch); }
+        button:disabled { opacity: .4; cursor: not-allowed; }
         .primary {
           background: linear-gradient(135deg, #059669 0%, #6366f1 140%);
           border-color: transparent; color: #fff;
-          box-shadow: 0 0 16px rgba(16,185,129,.3);
+          box-shadow: 0 0 12px rgba(16,185,129,.3);
         }
         .primary:hover {
           background: linear-gradient(135deg, #047857 0%, #4f46e5 140%);
-          box-shadow: 0 0 22px rgba(16,185,129,.42);
-          color: #fff;
+          box-shadow: 0 0 18px rgba(16,185,129,.42); color: #fff;
         }
-        .stop { display: none; color: var(--text3); }
-        .muted { color: var(--text3); font-size: 12px; }
+
+        /* ── Settings ── */
+        details { border: 1px solid var(--bd-s); border-radius: 7px; overflow: hidden; background: var(--bg-s); }
+        summary { padding: 7px 10px; cursor: pointer; color: var(--text3); font-weight: 600; font-size: 12px; list-style-position: inside; }
+        .settings-body { display: grid; gap: 7px; padding: 0 10px 10px; }
+        label { display: grid; gap: 3px; color: var(--text2); font-weight: 600; font-size: 12px; }
+        .si {
+          width: 100%; border: 1px solid var(--bd); border-radius: 5px;
+          padding: 6px 8px; background: var(--bg-i); color: var(--text);
+          font: inherit; outline: none;
+        }
+        .si:focus { border-color: rgba(99,102,241,.5); box-shadow: 0 0 0 2px rgba(99,102,241,.1); }
+        .si::placeholder { color: var(--ph); }
       </style>
+
       <button class="launcher" title="Threadsmith">T</button>
-      <section class="panel" aria-label="Threadsmith">
-        <header>
+
+      <div class="card" data-open="false" data-phase="idle" aria-label="Threadsmith">
+
+        <div class="card-head">
           <div class="logo">T</div>
-          <div class="header-text">
-            <h2>Threadsmith</h2>
-            <div class="subtitle">Preview AI titles before applying.</div>
+          <div class="head-info">
+            <div class="brand">Threadsmith</div>
+            <div class="tagline">Shape messy ChatGPT history into clear, searchable titles.</div>
           </div>
-        </header>
-        <main>
-          <button class="primary start">Review Titles</button>
-          <button class="stop">Stop</button>
+          <button class="close-btn" aria-label="Close">✕</button>
+        </div>
+
+        <div class="idle-body">
+          <div class="session-count"></div>
+          <button class="primary start-btn">Generate Titles</button>
           <details>
             <summary>Settings</summary>
             <div class="settings-body">
-              <label>Provider key<input class="deepseek-key" type="password" placeholder="sk-..."></label>
-              <label>Model<input class="deepseek-model" placeholder="deepseek-v4-flash"></label>
+              <label>Provider key<input class="si deepseek-key" type="password" placeholder="sk-..."></label>
+              <label>Model<input class="si deepseek-model" placeholder="deepseek-v4-flash"></label>
               <button class="save-settings">Save</button>
             </div>
           </details>
-          <div class="muted feedback" role="status"></div>
-        </main>
-      </section>
+          <div class="feedback"></div>
+        </div>
+
+        <div class="tools-bar">
+          <button class="sel-all">All</button>
+          <button class="sel-none">None</button>
+          <button class="sel-five">First 5</button>
+          <div class="spacer"></div>
+          <button class="back-btn">← Back</button>
+        </div>
+
+        <div class="session-list"></div>
+
+        <div class="wf-footer">
+          <div class="wf-summary"></div>
+          <div class="wf-actions">
+            <button class="wf-stop">Stop</button>
+            <button class="wf-generate primary">Generate</button>
+            <button class="wf-apply" disabled>Apply</button>
+          </div>
+        </div>
+
+      </div>
     `;
 
+    // Launcher toggle
     root.querySelector(".launcher").addEventListener("click", () => {
-      const panel = root.querySelector(".panel");
-      panel.dataset.open = panel.dataset.open !== "true";
-      renderPanel();
+      const card = root.querySelector(".card");
+      const opening = card.dataset.open !== "true";
+      card.dataset.open = String(opening);
+      if (opening && card.dataset.phase === "idle") updateIdleCount(root);
     });
+
+    root.querySelector(".close-btn").addEventListener("click", () => {
+      root.querySelector(".card").dataset.open = "false";
+    });
+
+    // Idle phase
     root.querySelector(".save-settings").addEventListener("click", async () => {
       settings = {
         ...settings,
@@ -620,235 +786,69 @@
         deepseekModel: root.querySelector(".deepseek-model").value.trim() || "deepseek-v4-flash"
       };
       await storage.setSettings(settings);
-      root.querySelector(".feedback").textContent = "Settings saved locally.";
+      root.querySelector(".feedback").textContent = "Settings saved.";
     });
-    root.querySelector(".start").addEventListener("click", () => launchRenameWorkflow());
-    root.querySelector(".stop").addEventListener("click", () => {
+
+    root.querySelector(".start-btn").addEventListener("click", () => startWorkflow(root));
+
+    // Workflow phase
+    root.querySelector(".back-btn").addEventListener("click", () => {
       stopRequested = true;
-      root.querySelector(".feedback").textContent = "Stop requested. Current step will finish first.";
+      switchPhase(root, "idle");
+      updateIdleCount(root);
+    });
+
+    root.querySelector(".wf-stop").addEventListener("click", () => {
+      stopRequested = true;
+    });
+
+    root.querySelector(".sel-all").addEventListener("click", () => {
+      allRows(root).forEach((r) => (r.querySelector('input[type="checkbox"]').checked = true));
+      updateWorkflowCount(root);
+    });
+    root.querySelector(".sel-none").addEventListener("click", () => {
+      allRows(root).forEach((r) => (r.querySelector('input[type="checkbox"]').checked = false));
+      updateWorkflowCount(root);
+    });
+    root.querySelector(".sel-five").addEventListener("click", () => {
+      allRows(root).forEach((r, i) => (r.querySelector('input[type="checkbox"]').checked = i < 5));
+      updateWorkflowCount(root);
+    });
+
+    root.querySelector(".session-list").addEventListener("change", () => updateWorkflowCount(root));
+    root.querySelector(".session-list").addEventListener("input", () => {
+      const hasTitle = allRows(root).some((r) => normalizeText(r.querySelector(".title")?.value || ""));
+      root.querySelector(".wf-apply").disabled = !hasTitle;
+    });
+
+    root.querySelector(".wf-generate").addEventListener("click", async () => {
+      const rows = selectedRows(root);
+      if (!rows.length) { setCardSummary(root, "Select at least one session first."); return; }
+      await generatePreview(rows, root);
+    });
+
+    root.querySelector(".wf-apply").addEventListener("click", async () => {
+      await applyPreview(selectedRows(root), root);
     });
   }
 
-  function renderPanel() {
-    const root = document.getElementById(APP_ID)?.shadowRoot;
+  function renderCard() {
+    const root = cardRoot();
     if (!root) return;
     root.querySelector(".deepseek-key").value = settings.deepseekApiKey || "";
     root.querySelector(".deepseek-model").value = settings.deepseekModel || "deepseek-v4-flash";
   }
 
-  function setPanelRunning(running) {
-    const panelRoot = document.getElementById(APP_ID)?.shadowRoot;
-    if (!panelRoot) return;
-    panelRoot.querySelector(".stop").style.display = running ? "" : "none";
-  }
-
-  function launchRenameWorkflow() {
-    const existing = document.getElementById("cso-rename-workflow");
-    existing?.remove();
-
+  function startWorkflow(root) {
     const targets = visibleSidebarSessions();
-    const overlay = document.createElement("div");
-    overlay.id = "cso-rename-workflow";
-    overlay.innerHTML = `
-      <style>
-        * { box-sizing: border-box; }
-        #cso-rename-workflow {
-          --bg:     rgba(13,15,23,.97);
-          --bg-h:   rgba(255,255,255,.04);
-          --bg-s:   rgba(255,255,255,.018);
-          --bg-i:   rgba(255,255,255,.04);
-          --bd:     rgba(255,255,255,.08);
-          --bd-s:   rgba(255,255,255,.06);
-          --text:   #e2e8f0;
-          --text2:  #94a3b8;
-          --text3:  #475569;
-          --old-c:  #94a3b8;
-          --bb:     rgba(255,255,255,.09);
-          --bbg:    rgba(255,255,255,.05);
-          --bc:     #94a3b8;
-          --bbgh:   rgba(255,255,255,.09);
-          --bch:    #cbd5e1;
-          --row-bg: rgba(255,255,255,.025);
-          --row-bh: rgba(255,255,255,.042);
-          --row-bd: rgba(255,255,255,.06);
-          --row-bdh:rgba(255,255,255,.09);
-          --shadow: 0 32px 100px rgba(0,0,0,.65),inset 0 0 0 1px rgba(255,255,255,.04);
-          --ovl:    rgba(5,8,15,.72);
-          --ph:     #2d3748;
-        }
-        @media (prefers-color-scheme: light) {
-          #cso-rename-workflow {
-            --bg:     rgba(248,250,252,.97);
-            --bg-h:   rgba(0,0,0,.02);
-            --bg-s:   rgba(0,0,0,.018);
-            --bg-i:   #ffffff;
-            --bd:     rgba(0,0,0,.1);
-            --bd-s:   rgba(0,0,0,.07);
-            --text:   #0f172a;
-            --text2:  #475569;
-            --text3:  #94a3b8;
-            --old-c:  #64748b;
-            --bb:     rgba(0,0,0,.12);
-            --bbg:    rgba(0,0,0,.04);
-            --bc:     #475569;
-            --bbgh:   rgba(0,0,0,.07);
-            --bch:    #1e293b;
-            --row-bg: rgba(0,0,0,.018);
-            --row-bh: rgba(0,0,0,.035);
-            --row-bd: rgba(0,0,0,.08);
-            --row-bdh:rgba(0,0,0,.14);
-            --shadow: 0 24px 80px rgba(0,0,0,.12),0 4px 16px rgba(0,0,0,.06),inset 0 0 0 1px rgba(0,0,0,.07);
-            --ovl:    rgba(15,23,42,.4);
-            --ph:     #94a3b8;
-          }
-        }
-        #cso-rename-workflow {
-          position: fixed;
-          inset: 0;
-          z-index: 2147483647;
-          display: grid;
-          place-items: center;
-          background: var(--ovl);
-          backdrop-filter: blur(6px);
-          -webkit-backdrop-filter: blur(6px);
-          font: 13px/1.5 system-ui, -apple-system, sans-serif;
-          color: var(--text);
-        }
-        #cso-rename-workflow .box {
-          width: min(960px, calc(100vw - 32px));
-          max-height: min(800px, calc(100vh - 32px));
-          display: grid;
-          grid-template-rows: auto auto 1fr auto;
-          border-radius: 16px;
-          border: 1px solid var(--bd);
-          background: var(--bg);
-          backdrop-filter: blur(24px) saturate(180%);
-          overflow: hidden;
-          box-shadow: var(--shadow);
-          animation: boxIn .18s cubic-bezier(.16,1,.3,1) both;
-        }
-        @keyframes boxIn {
-          from { opacity: 0; transform: scale(.97) translateY(8px); }
-          to   { opacity: 1; transform: scale(1)   translateY(0); }
-        }
-        #cso-rename-workflow header {
-          padding: 18px 20px 14px;
-          background: var(--bg-h);
-          border-bottom: 1px solid var(--bd-s);
-          display: flex; align-items: center; gap: 12px;
-        }
-        #cso-rename-workflow .header-icon {
-          width: 32px; height: 32px; border-radius: 8px;
-          background: linear-gradient(135deg, #10b981, #6366f1);
-          display: flex; align-items: center; justify-content: center;
-          color: #fff; font: 700 14px/1 system-ui; flex-shrink: 0;
-          box-shadow: 0 0 16px rgba(16,185,129,.4);
-        }
-        #cso-rename-workflow .header-text { flex: 1; min-width: 0; }
-        #cso-rename-workflow h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--text); line-height: 1.2; }
-        #cso-rename-workflow .summary { margin-top: 3px; font-size: 12px; color: var(--text3); }
-        #cso-rename-workflow .tools {
-          display: flex; flex-wrap: wrap; gap: 6px;
-          padding: 10px 20px;
-          background: var(--bg-s);
-          border-bottom: 1px solid var(--bd-s);
-        }
-        #cso-rename-workflow .list {
-          overflow: auto; padding: 12px 20px 16px;
-          display: grid; gap: 6px; align-content: start;
-        }
-        #cso-rename-workflow .list::-webkit-scrollbar { width: 4px; }
-        #cso-rename-workflow .list::-webkit-scrollbar-track { background: transparent; }
-        #cso-rename-workflow .list::-webkit-scrollbar-thumb { background: var(--bd); border-radius: 4px; }
-        #cso-rename-workflow .row {
-          display: grid;
-          grid-template-columns: 18px minmax(180px,.9fr) minmax(240px,1.2fr) minmax(90px,auto);
-          gap: 10px; align-items: center;
-          padding: 10px 12px;
-          border: 1px solid var(--row-bd);
-          border-radius: 9px;
-          background: var(--row-bg);
-          transition: background .12s, border-color .12s;
-        }
-        #cso-rename-workflow .row:hover { background: var(--row-bh); border-color: var(--row-bdh); }
-        #cso-rename-workflow .row input[type="checkbox"] { width: 15px; height: 15px; margin: 0; accent-color: #10b981; }
-        #cso-rename-workflow .old {
-          min-width: 0; font-weight: 600; font-size: 12.5px; color: var(--old-c);
-          overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-        }
-        #cso-rename-workflow input[type="text"] {
-          width: 100%; border: 1px solid var(--bd); border-radius: 6px;
-          padding: 7px 9px; background: var(--bg-i); color: var(--text);
-          font: inherit; outline: none; transition: border-color .15s, box-shadow .15s;
-        }
-        #cso-rename-workflow input[type="text"]:focus {
-          border-color: rgba(99,102,241,.5);
-          box-shadow: 0 0 0 3px rgba(99,102,241,.1);
-        }
-        #cso-rename-workflow input[type="text"]::placeholder { color: var(--ph); }
-        #cso-rename-workflow button {
-          border: 1px solid var(--bb); border-radius: 7px;
-          padding: 7px 12px; background: var(--bbg); color: var(--bc);
-          cursor: pointer; font: 600 12px/1.2 system-ui;
-          transition: background .15s, color .15s; white-space: nowrap;
-        }
-        #cso-rename-workflow button:hover:not(:disabled) { background: var(--bbgh); color: var(--bch); }
-        #cso-rename-workflow button:disabled { opacity: .4; cursor: not-allowed; }
-        #cso-rename-workflow footer {
-          padding: 12px 20px; border-top: 1px solid var(--bd-s);
-          display: flex; justify-content: space-between; align-items: center; gap: 8px;
-          background: var(--bg-s);
-        }
-        #cso-rename-workflow footer > div { display: flex; gap: 8px; }
-        #cso-rename-workflow .primary {
-          background: linear-gradient(135deg, #059669 0%, #6366f1 140%);
-          border-color: transparent; color: #fff;
-          padding: 8px 16px; font-size: 13px;
-          box-shadow: 0 0 18px rgba(16,185,129,.32);
-        }
-        #cso-rename-workflow .primary:hover:not(:disabled) {
-          background: linear-gradient(135deg, #047857 0%, #4f46e5 140%);
-          box-shadow: 0 0 26px rgba(16,185,129,.44);
-          color: #fff;
-        }
-        #cso-rename-workflow .stop-workflow { display: none; }
-        #cso-rename-workflow .status {
-          justify-self: end; max-width: 160px; border-radius: 999px;
-          padding: 3px 9px; background: var(--bbg); color: var(--bc);
-          font: 600 11px/1.5 system-ui; white-space: nowrap;
-          overflow: hidden; text-overflow: ellipsis; border: 1px solid var(--bb);
-        }
-        #cso-rename-workflow .error { background: rgba(239,68,68,.12); color: #f87171; border-color: rgba(239,68,68,.22); }
-        #cso-rename-workflow .ok    { background: rgba(16,185,129,.12); color: #34d399; border-color: rgba(16,185,129,.22); }
-      </style>
-      <section class="box" role="dialog" aria-modal="true" aria-label="Rename visible sessions">
-        <header>
-          <div class="header-icon">T</div>
-          <div class="header-text">
-            <h2>Review Titles</h2>
-            <div class="summary"></div>
-          </div>
-        </header>
-        <div class="tools">
-          <button class="select-all">Select all</button>
-          <button class="select-none">Clear</button>
-          <button class="select-five">First 5</button>
-        </div>
-        <div class="list"></div>
-        <footer>
-          <button class="cancel">Close</button>
-          <div>
-            <button class="stop-workflow">Stop</button>
-            <button class="generate primary">Generate Preview</button>
-            <button class="apply" disabled>Apply Selected</button>
-          </div>
-        </footer>
-      </section>
-    `;
+    const list = root.querySelector(".session-list");
+    list.innerHTML = "";
 
-    const list = overlay.querySelector(".list");
     if (!targets.length) {
-      list.innerHTML = `<p class="status">No visible ChatGPT sessions found. Scroll the sidebar to load more sessions, then try again.</p>`;
+      list.innerHTML = `<div class="no-sessions">No visible sessions found.<br>Scroll the ChatGPT sidebar to load more.</div>`;
+      switchPhase(root, "workflow");
+      setCardSummary(root, "0 / 0 selected");
+      return;
     }
 
     for (const [index, target] of targets.entries()) {
@@ -857,164 +857,120 @@
       row.dataset.id = target.id;
       row.innerHTML = `
         <input type="checkbox" ${index < 5 ? "checked" : ""}>
-        <div class="old"></div>
-        <input class="title" type="text" placeholder="Generate preview first">
-        <div class="status">Queued</div>
+        <div class="row-old"></div>
+        <div class="row-status">Queued</div>
+        <div class="row-title-wrap"><input class="title" type="text" placeholder="Generate to preview"></div>
       `;
-      row.querySelector(".old").textContent = target.title;
+      row.querySelector(".row-old").textContent = target.title;
       row._target = target;
       list.append(row);
     }
 
-    const rows = () => [...overlay.querySelectorAll(".row")];
-    const selectedRows = () => rows().filter((row) => row.querySelector('input[type="checkbox"]').checked);
-    const setSummary = (text) => {
-      overlay.querySelector(".summary").textContent = text;
-    };
-    const setStatus = (row, text, className = "") => {
-      const status = row.querySelector(".status");
-      status.className = `status ${className}`.trim();
-      status.textContent = text;
-    };
-    const updateCount = () => {
-      setSummary(`${selectedRows().length}/${targets.length} selected`);
-    };
-
-    overlay.addEventListener("change", updateCount);
-    overlay.querySelector(".select-all").addEventListener("click", () => {
-      rows().forEach((row) => (row.querySelector('input[type="checkbox"]').checked = true));
-      updateCount();
-    });
-    overlay.querySelector(".select-none").addEventListener("click", () => {
-      rows().forEach((row) => (row.querySelector('input[type="checkbox"]').checked = false));
-      updateCount();
-    });
-    overlay.querySelector(".select-five").addEventListener("click", () => {
-      rows().forEach((row, index) => (row.querySelector('input[type="checkbox"]').checked = index < 5));
-      updateCount();
-    });
-    const closeOverlay = () => {
-      overlay.remove();
-      document.removeEventListener("keydown", onEscKey);
-      setPanelRunning(false);
-    };
-    const onEscKey = (e) => { if (e.key === "Escape") closeOverlay(); };
-    document.addEventListener("keydown", onEscKey);
-
-    overlay.querySelector(".cancel").addEventListener("click", closeOverlay);
-    overlay.querySelector(".stop-workflow").addEventListener("click", () => { stopRequested = true; });
-    overlay.querySelector(".generate").addEventListener("click", async () => {
-      await generatePreview(selectedRows(), setSummary, setStatus, overlay);
-    });
-    overlay.querySelector(".apply").addEventListener("click", async () => {
-      await applyPreview(selectedRows(), setSummary, setStatus, overlay);
-    });
-    overlay.querySelector(".list").addEventListener("input", () => {
-      const hasTitle = rows().some((row) => normalizeText(row.querySelector(".title").value));
-      overlay.querySelector(".apply").disabled = !hasTitle;
-    });
-
-    document.documentElement.append(overlay);
-    updateCount();
+    updateWorkflowCount(root);
+    switchPhase(root, "workflow");
   }
 
-  async function generatePreview(rows, setSummary, setStatus, overlay) {
+  async function generatePreview(rows, root) {
     stopRequested = false;
     try {
       settings = await storage.getSettings();
     } catch (error) {
-      setSummary(error.message || "Could not read extension settings.");
+      setCardSummary(root, error.message || "Could not read settings.");
       return;
     }
     if (!settings.deepseekApiKey) {
-      setSummary("Add a DeepSeek API key in the floating panel or extension popup first.");
+      setCardSummary(root, "Add a DeepSeek API key in Settings first.");
       return;
     }
 
-    setPanelRunning(true);
-    overlay.querySelector(".stop-workflow").style.display = "";
-    overlay.querySelector(".generate").disabled = true;
+    root.querySelector(".wf-stop").style.display = "";
+    root.querySelector(".wf-generate").disabled = true;
+    root.querySelector(".back-btn").disabled = true;
 
-    let generated = 0;
-    let repaired = 0;
-    let skipped = 0;
+    let generated = 0, repaired = 0, skipped = 0;
 
     for (const [index, row] of rows.entries()) {
       if (stopRequested) {
-        setSummary(`Stopped: ${generated}/${rows.length} previews generated.`);
+        setCardSummary(root, `Stopped — ${generated} / ${rows.length} generated.`);
         break;
       }
       const target = row._target;
-      setStatus(row, "Reading");
-      setSummary(`Reading ${index + 1}/${rows.length}: ${target.title}`);
+      setRowStatus(row, "Reading");
+      setCardSummary(root, `${index + 1} / ${rows.length} — ${target.title}`);
       try {
         const suggestion = await generateTitleSuggestion(target);
         row.querySelector(".title").value = suggestion.title;
         row.dataset.ready = "true";
-        generated += 1;
-        if (suggestion.repaired) repaired += 1;
-        setStatus(row, suggestion.repaired ? "Repaired" : "Ready", "ok");
+        row.classList.add("has-title");
+        generated++;
+        if (suggestion.repaired) repaired++;
+        setRowStatus(row, suggestion.repaired ? "Repaired" : "Ready", "ok");
       } catch (error) {
-        skipped += 1;
-        row.dataset.ready = "";
-        setStatus(row, error.message || "Skipped", "error");
+        skipped++;
+        setRowStatus(row, "Skipped", "error");
       }
     }
 
-    const hasTitle = rows.some((row) => normalizeText(row.querySelector(".title").value));
-    overlay.querySelector(".apply").disabled = !hasTitle;
-    overlay.querySelector(".stop-workflow").style.display = "none";
-    overlay.querySelector(".generate").disabled = false;
-    setPanelRunning(false);
-    setSummary(`Preview complete: ${generated}/${rows.length} ready${repaired ? `, ${repaired} repaired` : ""}${skipped ? `, ${skipped} skipped` : ""}.`);
+    const hasTitle = allRows(root).some((r) => normalizeText(r.querySelector(".title")?.value || ""));
+    root.querySelector(".wf-apply").disabled = !hasTitle;
+    root.querySelector(".wf-stop").style.display = "none";
+    root.querySelector(".wf-generate").disabled = false;
+    root.querySelector(".back-btn").disabled = false;
+    setCardSummary(root, `Done — ${generated} ready${repaired ? `, ${repaired} repaired` : ""}${skipped ? `, ${skipped} skipped` : ""}.`);
   }
 
-  async function applyPreview(rows, setSummary, setStatus, overlay) {
+  async function applyPreview(rows, root) {
     stopRequested = false;
-    const readyRows = rows.filter((row) => normalizeText(row.querySelector(".title").value));
-    let renamed = 0;
-    let failed = 0;
+    const readyRows = rows.filter((r) => normalizeText(r.querySelector(".title")?.value || ""));
+    if (!readyRows.length) { setCardSummary(root, "No titles to apply."); return; }
 
-    setPanelRunning(true);
-    overlay.querySelector(".stop-workflow").style.display = "";
-    overlay.querySelector(".apply").disabled = true;
+    root.querySelector(".wf-stop").style.display = "";
+    root.querySelector(".wf-apply").disabled = true;
+    root.querySelector(".wf-generate").disabled = true;
+    root.querySelector(".back-btn").disabled = true;
+
+    let renamed = 0, failed = 0;
 
     for (const [index, row] of readyRows.entries()) {
       if (stopRequested) {
-        setSummary(`Stopped: ${renamed}/${readyRows.length} renamed.`);
+        setCardSummary(root, `Stopped — ${renamed} / ${readyRows.length} renamed.`);
         break;
       }
-
       const target = row._target;
       const title = normalizeText(row.querySelector(".title").value);
-      setStatus(row, "Renaming");
-      setSummary(`Renaming ${index + 1}/${readyRows.length}: ${title}`);
+      setRowStatus(row, "Renaming");
+      setCardSummary(root, `${index + 1} / ${readyRows.length} — ${title}`);
       try {
         await openConversation(target.id, target.url);
         await renameInChatGpt(target.id, title);
-        renamed += 1;
-        setStatus(row, "Renamed", "ok");
+        renamed++;
+        setRowStatus(row, "Renamed", "ok");
       } catch (error) {
-        failed += 1;
-        setStatus(row, error.message || "Failed", "error");
+        failed++;
+        setRowStatus(row, "Failed", "error");
       }
     }
 
-    overlay.querySelector(".stop-workflow").style.display = "none";
-    overlay.querySelector(".apply").disabled = false;
-    setPanelRunning(false);
-    setSummary(`Apply complete: ${renamed}/${readyRows.length} renamed${failed ? `, ${failed} failed` : ""}.`);
+    root.querySelector(".wf-stop").style.display = "none";
+    root.querySelector(".wf-apply").disabled = false;
+    root.querySelector(".wf-generate").disabled = false;
+    root.querySelector(".back-btn").disabled = false;
+    setCardSummary(root, `Done — ${renamed} renamed${failed ? `, ${failed} failed` : ""}.`);
   }
 
   async function init() {
     settings = await storage.getSettings();
     createApp();
-    renderPanel();
+    renderCard();
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === "CSR_START_WORKFLOW") {
-      launchRenameWorkflow();
+      const root = cardRoot();
+      if (root) {
+        root.querySelector(".card").dataset.open = "true";
+        startWorkflow(root);
+      }
       sendResponse({ ok: true });
       return true;
     }
@@ -1034,7 +990,7 @@
         deepseekModel: normalizeText(message.settings?.deepseekModel) || "deepseek-v4-flash"
       };
       storage.setSettings(settings).then(() => {
-        renderPanel();
+        renderCard();
         sendResponse({ ok: true });
       });
       return true;
