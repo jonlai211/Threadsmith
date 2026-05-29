@@ -534,16 +534,20 @@
         .launcher {
           position: fixed; right: 18px; bottom: 20px;
           z-index: 2147483647;
-          width: 44px; height: 44px; border: 0; border-radius: 11px;
-          background: linear-gradient(135deg, #10b981 0%, #6366f1 100%);
-          color: #fff; font: 700 15px/1 system-ui;
-          box-shadow: 0 4px 20px rgba(16,185,129,.45), 0 2px 8px rgba(0,0,0,.3);
-          cursor: pointer;
+          width: 44px; height: 44px;
+          padding: 0; border: 0; border-radius: 11px;
+          background: transparent;
+          cursor: pointer; overflow: hidden;
+          box-shadow: 0 4px 18px rgba(0,0,0,.22), 0 2px 6px rgba(0,0,0,.14);
           transition: transform .15s, box-shadow .15s;
+        }
+        .launcher img {
+          display: block; width: 100%; height: 100%;
+          pointer-events: none; user-select: none;
         }
         .launcher:hover {
           transform: translateY(-1px) scale(1.05);
-          box-shadow: 0 6px 28px rgba(16,185,129,.55), 0 3px 12px rgba(0,0,0,.35);
+          box-shadow: 0 6px 26px rgba(16,185,129,.32), 0 3px 10px rgba(0,0,0,.2);
         }
 
         /* ── Card ── */
@@ -718,7 +722,7 @@
         .si::placeholder { color: var(--ph); }
       </style>
 
-      <button class="launcher" title="Threadsmith">T</button>
+      <button class="launcher" title="Threadsmith"><img alt=""></button>
 
       <div class="card" data-open="false" data-phase="idle" aria-label="Threadsmith">
 
@@ -765,6 +769,11 @@
 
       </div>
     `;
+
+    // Wire up launcher icon
+    try {
+      root.querySelector(".launcher img").src = chrome.runtime.getURL("icons/icon128.png");
+    } catch {}
 
     // Launcher toggle
     root.querySelector(".launcher").addEventListener("click", () => {

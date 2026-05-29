@@ -30,5 +30,11 @@
       "js": ["content_script.js"],
       "run_at": "document_idle"
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*"],
+      "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"]
+    }
   ]
 }
