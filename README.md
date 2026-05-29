@@ -44,7 +44,7 @@ Settings are stored in `chrome.storage.local`.
 3. Click `Load unpacked`.
 4. Select:
 
-   `C:\Users\Jonathan Lai\Downloads\chatgpt-session-organizer`
+   `C:\Users\Jonathan Lai\Downloads\Threadsmith`
 
 5. Open `https://chatgpt.com`.
 6. Reload the extension after code changes.
