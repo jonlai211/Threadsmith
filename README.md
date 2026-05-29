@@ -5,9 +5,12 @@ Shape messy ChatGPT history into clear, searchable titles.
 ## Files
 
 - `manifest.json` defines the Chrome extension permissions, popup, background worker, and ChatGPT content script.
-- `content_script.js` runs inside ChatGPT. It scans visible sessions, extracts recent conversation text, calls the title provider, shows the review table, and applies confirmed renames through ChatGPT's native title editor.
+- `content_script.js` runs inside ChatGPT. It owns the floating card UI, scans visible sessions, extracts recent conversation text, orchestrates title generation, shows the review table, and applies confirmed renames through ChatGPT's native title editor.
+- `service_worker.js` is the transport layer. It runs the OpenAI-compatible `/chat/completions` request in the background so calls use the extension's host permissions and are not blocked by the ChatGPT page's CORS policy.
+- `lib/providers.js` holds provider presets (DeepSeek, OpenAI, OpenRouter, Custom), the settings schema + migration, and transport resolution. Shared by the content script and the popup.
+- `lib/prompts.js` holds the per-language title prompt templates.
+- `lib/validators.js` holds the shared and per-language title validation rules.
 - `popup.html`, `popup.css`, and `popup.js` provide the small extension popup for opening the review workflow and saving provider settings.
-- `service_worker.js` is intentionally minimal; most behavior lives in the ChatGPT tab.
 - `icons/` contains extension icons.
 
 ## Workflow
@@ -25,17 +28,21 @@ Shape messy ChatGPT history into clear, searchable titles.
 
 - Reads visible ChatGPT sidebar sessions only.
 - Opens each selected session and extracts recent conversation text.
-- Uses DeepSeek to generate Chinese titles.
-- Keeps proper nouns in English.
+- Generates titles through any OpenAI-compatible provider (DeepSeek, OpenAI, OpenRouter, or a custom endpoint).
+- Generates Simplified Chinese titles by default and keeps proper nouns in English. (English output is a wired-in language slot, tuned later.)
 - Requires preview and confirmation before writing titles back to ChatGPT.
 - Skips bad or failed suggestions instead of using generic fallback titles.
 
 ## Settings
 
-- `Provider key`
-- `Model`, defaulting to `deepseek-v4-flash`
+- `Provider` — DeepSeek, OpenAI, OpenRouter, or Custom (OpenAI-compatible)
+- `API key`
+- `Model` — defaults to the selected provider's default (e.g. `deepseek-v4-flash`)
+- `Base URL` — shown for the Custom provider only
 
-Settings are stored in `chrome.storage.local`.
+Settings are stored in `chrome.storage.local` under `threadsmith.settings`. The
+old `cso.settings` key is migrated automatically on first load. A custom
+endpoint requires granting host access from the toolbar popup (`optional_host_permissions`).
 
 ## Install Locally
 

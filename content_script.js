@@ -1,40 +1,19 @@
 (function initChatGptSessionRenamer() {
   // Runs in the ChatGPT page. Owns the floating card UI, conversation
   // extraction, AI title generation, and native ChatGPT rename flow.
-  const SETTINGS_KEY = "cso.settings";
   const APP_ID = "threadsmith-root";
   const SESSION_RE = /\/c\/([a-zA-Z0-9-]+)/;
-  const BAD_UI_TITLE_RE = /(Extended can make|ChatGPT can make|can make mistakes|Ask anything|Check important info|Create an image|Write or edit|Look something up|Search chats|New chat|Recents)/i;
-  const BAD_AI_TITLE_RE = /(AI\s*免责声明|AI\s*免责申明|免责声明|免责申明|作为AI|作为一个AI|无法提供|不能提供|不能替代|consult|disclaimer)/i;
 
-  let settings = {};
+  // Shared modules are attached to window.Threadsmith by the lib/*.js content
+  // scripts that load before this file (see manifest content_scripts order).
+  const { config, prompts, validators } = window.Threadsmith;
+
+  let settings = config.normalizeSettings(null);
   let stopRequested = false;
 
-  const storage = {
-    async getSettings() {
-      try {
-        if (!chrome?.storage?.local) return {};
-        const result = await chrome.storage.local.get(SETTINGS_KEY);
-        return result[SETTINGS_KEY] || {};
-      } catch (error) {
-        if (/Extension context invalidated/i.test(error.message || "")) {
-          throw new Error("Extension was reloaded. Refresh the ChatGPT page, then open the renamer again.");
-        }
-        throw error;
-      }
-    },
-    async setSettings(value) {
-      try {
-        if (!chrome?.storage?.local) return;
-        await chrome.storage.local.set({ [SETTINGS_KEY]: value });
-      } catch (error) {
-        if (/Extension context invalidated/i.test(error.message || "")) {
-          throw new Error("Extension was reloaded. Refresh the ChatGPT page, then open the renamer again.");
-        }
-        throw error;
-      }
-    }
-  };
+  function languageFor(sample) {
+    return prompts.resolveLanguage(settings.titleLanguage, sample);
+  }
 
   function getSessionIdFromUrl(url) {
     return url?.match(SESSION_RE)?.[1] || "";
@@ -48,14 +27,9 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  function limitText(text, maxChars) {
-    const clean = normalizeText(text);
-    return clean.length > maxChars ? `${clean.slice(0, maxChars)}...` : clean;
-  }
-
   function isBoilerplateText(text) {
     const clean = normalizeText(text);
-    return !clean || BAD_UI_TITLE_RE.test(clean) || /^(Skip to content|Chat history|Projects|Library|Apps|More|Share|Thinking|Ready when you are)$/i.test(clean);
+    return !clean || validators.BAD_UI_TITLE_RE.test(clean) || /^(Skip to content|Chat history|Projects|Library|Apps|More|Share|Thinking|Ready when you are)$/i.test(clean);
   }
 
   function cleanMessageText(text) {
@@ -64,47 +38,6 @@
       .map((line) => normalizeText(line))
       .filter((line) => line && !isBoilerplateText(line))
       .join(" ");
-  }
-
-  function stripQuestionSentence(text) {
-    return normalizeText(text)
-      .replace(/^(我想知道|我想问|我应该怎么|我该怎么|怎么|如何|请问|帮我|能不能|可以不可以|是不是|为什么)\s*/i, "")
-      .replace(/[？?。.!！]+$/g, "")
-      .replace(/^(我|我们|今天|下午|上午|刚才|现在)\s*/i, "");
-  }
-
-  function looksLikeSentenceTitle(title) {
-    const clean = normalizeText(title);
-    return /[？?。.!！]$/.test(clean) ||
-      /^(我|我们|今天|下午|上午|刚才|现在|这我|有学习到|我看|我用|不不不|请问|怎么|如何|为什么|能讲解|讲解下|可以讲解|能解释|可以解释)/.test(clean) ||
-      /(算什么|是什么|这些内容|知识体系|有些混|有点混|不太懂|看不懂|什么意思)$/.test(clean) ||
-      (clean.length > 24 && /[，,。；;？?]/.test(clean));
-  }
-
-  function normalizeAiTitle(title) {
-    return normalizeText(title)
-      .replace(/^(General|Life|Research|Writing|Code|School|生活|研究|写作|代码|学习)\s*[-:：]\s*/i, "")
-      .replace(/\s*[-:：]\s*$/, "")
-      .slice(0, 60);
-  }
-
-  function isBadAiTitle(title) {
-    const clean = normalizeText(title);
-    return !clean ||
-      clean.length < 4 ||
-      /[\uFFFD]|(\?\?)/.test(clean) ||
-      BAD_AI_TITLE_RE.test(clean) ||
-      BAD_UI_TITLE_RE.test(clean) ||
-      looksLikeSentenceTitle(clean);
-  }
-
-  function safeJsonParse(text) {
-    try {
-      return JSON.parse(text);
-    } catch {
-      const match = String(text || "").match(/\{[\s\S]*\}/);
-      return match ? JSON.parse(match[0]) : null;
-    }
   }
 
   function clickElement(element) {
@@ -191,110 +124,87 @@
     return extractConversationText();
   }
 
-  async function requestDeepSeekJson(payload, label) {
-    const apiKey = settings.deepseekApiKey;
-    if (!apiKey) throw new Error("Add a DeepSeek API key first.");
-
-    const request = async (body) => {
-      const response = await fetch("https://api.deepseek.com/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(body)
-      });
-      if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(`${label} failed: ${response.status} ${text.slice(0, 120)}`);
-      }
-      return response.json();
-    };
-
-    let data = await request(payload);
-    let choice = data?.choices?.[0] || {};
-    let content = choice.message?.content || "";
-    let parsed = content ? safeJsonParse(content) : null;
-    if (parsed) return { parsed, content };
-
-    const retryPayload = {
-      ...payload,
-      messages: [
-        ...payload.messages,
-        { role: "user", content: "The previous response was empty or invalid. Return ONLY a compact JSON object now. No markdown. No explanation." }
-      ],
-      max_tokens: Math.max(payload.max_tokens || 120, 700)
-    };
-    delete retryPayload.response_format;
-
-    data = await request(retryPayload);
-    choice = data?.choices?.[0] || {};
-    content = choice.message?.content || "";
-    parsed = content ? safeJsonParse(content) : null;
-    if (!parsed) {
-      const finish = choice.finish_reason ? ` finish_reason=${choice.finish_reason}` : "";
-      const reason = choice.message?.reasoning_content ? ` reasoning=${String(choice.message.reasoning_content).slice(0, 120)}` : "";
-      throw new Error(`${label} returned empty or invalid JSON:${finish}${reason} content=${content.slice(0, 120)}`);
+  function hostOf(url) {
+    try {
+      return new URL(url).host;
+    } catch {
+      return url || "provider";
     }
-    return { parsed, content };
   }
 
-  function titlePromptMessages(originalTitle, messages, repair = null, options = {}) {
-    const messageLimit = options.messageLimit || (repair ? 8 : 4);
-    const charLimit = options.charLimit || (repair ? 700 : 500);
-    const transcript = messages
-      .slice(-messageLimit)
-      .map((message, index) => `${index + 1}. ${message.role || "message"}: ${limitText(message.text, charLimit)}`)
-      .join("\n");
-
-    const system = [
-      "You rename ChatGPT conversations for retrieval.",
-      "Return only valid JSON: {\"title\":\"...\"}.",
-      "Use Simplified Chinese for common words.",
-      "Keep proper nouns, brands, code names, airports, tools, and technical names in English.",
-      "Preferred style: specific noun/object prefix, hyphen, compact topic/task.",
-      "Good examples: 去水印技巧 - 方法汇总, 加密货币 - 事件提醒, 租车 - Hertz租车指南, Mastercard - 租车保险拒赔, PR - 竖屏剪辑缩放.",
-      "Do not use broad prefixes like General, Life, Research, 生活, 研究, 学习.",
-      "Do not copy the user's full question. Do not write a sentence, question, or first-person title.",
-      "Never use UI boilerplate as a title."
-    ].join(" ");
-
-    const user = repair
-      ? `Old title: ${originalTitle}\nBad title: ${repair.badTitle}\nProblem: ${repair.reason}\n\nConversation excerpt:\n${transcript}\n\nReturn JSON only.`
-      : `Old title: ${originalTitle}\n\nConversation excerpt:\n${transcript}\n\nReturn JSON only.`;
-
-    return [
-      { role: "system", content: system },
-      { role: "user", content: user }
-    ];
+  function describeProviderError(where, status, raw) {
+    if (status === 401 || status === 403) return `${where}: invalid or unauthorized API key (${status}).`;
+    if (status === 402) return `${where}: insufficient balance (402). Top up the account.`;
+    if (status === 429) return `${where}: quota or rate limit reached (429). Check the provider's billing/plan.`;
+    if (status >= 500) return `${where}: provider error (${status}). Try again later.`;
+    return raw || `${where} failed (${status}).`;
   }
 
-  async function requestTitleSuggestion(originalTitle, messages, options = {}) {
-    const { parsed, content } = await requestDeepSeekJson({
-      model: settings.deepseekModel || "deepseek-v4-flash",
-      messages: titlePromptMessages(originalTitle, messages, null, options),
-      response_format: { type: "json_object" },
+  async function requestChatJson(payload, label) {
+    const transport = config.resolveTransport(settings);
+    if (!transport.apiKey) throw new Error("Add a provider API key in Settings first.");
+    if (!transport.baseURL) throw new Error("Set the provider base URL in Settings first.");
+
+    let response;
+    try {
+      response = await chrome.runtime.sendMessage({
+        type: "TS_CHAT_JSON",
+        transport: { baseURL: transport.baseURL, apiKey: transport.apiKey },
+        payload: {
+          model: payload.model || transport.model,
+          messages: payload.messages,
+          temperature: payload.temperature,
+          maxTokens: payload.maxTokens,
+          jsonMode: transport.jsonMode
+        },
+        label
+      });
+    } catch (error) {
+      if (/Extension context invalidated|message port closed|Receiving end does not exist/i.test(error?.message || "")) {
+        throw new Error("Extension was reloaded. Refresh the ChatGPT page, then open Threadsmith again.");
+      }
+      throw error;
+    }
+
+    if (!response) throw new Error(`${label}: no response from the background worker.`);
+    if (!response.ok) {
+      const where = `${label} @ ${hostOf(transport.baseURL)}`;
+      const error = new Error(
+        response.status ? describeProviderError(where, response.status, response.error) : (response.error || `${where} failed.`)
+      );
+      // A provider HTTP status (4xx/5xx) is a transport-level failure: don't
+      // retry or run the repair pass on it.
+      if (response.status) error.status = response.status;
+      throw error;
+    }
+    return { parsed: response.parsed, content: response.content || "" };
+  }
+
+  async function requestTitleSuggestion(originalTitle, messages, language, options = {}) {
+    const { parsed, content } = await requestChatJson({
+      messages: prompts.buildTitleMessages({ language, originalTitle, messages, options }),
       temperature: 0.2,
-      max_tokens: options.maxTokens || 450,
-      stream: false
-    }, "DeepSeek title");
+      maxTokens: options.maxTokens || 450
+    }, "Title");
 
-    const title = normalizeAiTitle(parsed?.title);
-    if (!title) throw new Error(`DeepSeek returned no title: ${content.slice(0, 120)}`);
-    if (isBadAiTitle(title)) throw new Error(`DeepSeek returned an unusable title: ${title}`);
+    const title = validators.normalizeAiTitle(parsed?.title);
+    if (!title) throw new Error(`Provider returned no title: ${content.slice(0, 120)}`);
+    if (validators.isBadTitle(title, language)) throw new Error(`Provider returned an unusable title: ${title}`);
     return title;
   }
 
-  async function suggestTitleWithDeepSeek(originalTitle, messages) {
+  async function suggestTitle(originalTitle, messages, language) {
     try {
-      return await requestTitleSuggestion(originalTitle, messages, {
+      return await requestTitleSuggestion(originalTitle, messages, language, {
         messageLimit: 4,
         charLimit: 500,
         maxTokens: 450
       });
     } catch (error) {
-      if (/unusable title/i.test(error.message || "")) throw error;
-      return requestTitleSuggestion(originalTitle, messages, {
+      // Fail fast on provider HTTP errors and on already-rejected titles;
+      // only retry when the first pass produced empty/invalid content.
+      if (error.status || /unusable title/i.test(error.message || "")) throw error;
+      return requestTitleSuggestion(originalTitle, messages, language, {
         messageLimit: 8,
         charLimit: 700,
         maxTokens: 700
@@ -302,22 +212,22 @@
     }
   }
 
-  async function repairTitleWithDeepSeek(originalTitle, messages, badTitle, reason) {
-    const { parsed, content } = await requestDeepSeekJson({
-      model: settings.deepseekModel || "deepseek-v4-flash",
-      messages: titlePromptMessages(originalTitle, messages, { badTitle, reason }, {
-        messageLimit: 8,
-        charLimit: 700
+  async function repairTitle(originalTitle, messages, badTitle, reason, language) {
+    const { parsed, content } = await requestChatJson({
+      messages: prompts.buildTitleMessages({
+        language,
+        originalTitle,
+        messages,
+        repair: { badTitle, reason },
+        options: { messageLimit: 8, charLimit: 700 }
       }),
-      response_format: { type: "json_object" },
       temperature: 0.1,
-      max_tokens: 700,
-      stream: false
-    }, "DeepSeek title repair");
+      maxTokens: 700
+    }, "Title repair");
 
-    const title = normalizeAiTitle(parsed?.title);
-    if (!title || isBadAiTitle(title)) {
-      throw new Error(`DeepSeek title repair returned unusable title: ${title || content.slice(0, 120)}`);
+    const title = validators.normalizeAiTitle(parsed?.title);
+    if (!title || validators.isBadTitle(title, language)) {
+      throw new Error(`Title repair returned unusable title: ${title || content.slice(0, 120)}`);
     }
     return title;
   }
@@ -330,13 +240,21 @@
       throw new Error("Could not open the target conversation before reading content.");
     }
 
+    // Resolve language once per conversation: explicit setting wins, otherwise
+    // auto-detect from the conversation text (plus the old title as a hint).
+    const sample = `${target.title} ${messages.map((m) => m.text).join(" ")}`.slice(0, 600);
+    const language = languageFor(sample);
+
     try {
       return {
-        title: await suggestTitleWithDeepSeek(target.title, messages),
+        title: await suggestTitle(target.title, messages, language),
         repaired: false
       };
     } catch (error) {
-      const repaired = await repairTitleWithDeepSeek(target.title, messages, "No usable title from first pass", error.message || String(error));
+      // Provider HTTP errors (quota, auth, rate limit) won't be fixed by a
+      // second call — surface them directly instead of burning a repair pass.
+      if (error.status) throw error;
+      const repaired = await repairTitle(target.title, messages, "No usable title from first pass", error.message || String(error), language);
       return {
         title: repaired,
         repaired: true,
@@ -388,7 +306,7 @@
     const newTitle = normalizeText(title);
     if (!id) throw new Error("Open a saved ChatGPT conversation first.");
     if (!newTitle) throw new Error("Enter a title before renaming.");
-    if (isBadAiTitle(newTitle)) throw new Error(`Refused bad title: ${newTitle}`);
+    if (validators.isBadTitle(newTitle, languageFor(newTitle))) throw new Error(`Refused bad title: ${newTitle}`);
 
     let editor = await waitForTitleEditor(250);
     let lastError = "Could not find ChatGPT's title editor.";
@@ -741,8 +659,15 @@
           <details>
             <summary>Settings</summary>
             <div class="settings-body">
-              <label>Provider key<input class="si deepseek-key" type="password" placeholder="sk-..."></label>
-              <label>Model<input class="si deepseek-model" placeholder="deepseek-v4-flash"></label>
+              <label>Provider<select class="si provider-select"></select></label>
+              <label>API key<input class="si provider-key" type="password" placeholder="sk-..."></label>
+              <label>Model<input class="si provider-model" placeholder="deepseek-v4-flash"></label>
+              <label class="baseurl-row">Base URL<input class="si provider-baseurl" type="text" placeholder="https://api.example.com"></label>
+              <label>Title language<select class="si language-select">
+                <option value="auto">Auto (match chat)</option>
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+              </select></label>
               <button class="save-settings">Save</button>
             </div>
           </details>
@@ -788,14 +713,32 @@
     });
 
     // Idle phase
+    root.querySelector(".provider-select").addEventListener("change", () => fillProviderFields(root));
+
     root.querySelector(".save-settings").addEventListener("click", async () => {
-      settings = {
+      const id = root.querySelector(".provider-select").value;
+      const preset = config.PROVIDERS[id] || config.PROVIDERS[config.DEFAULT_PROVIDER_ID];
+      const next = {
         ...settings,
-        deepseekApiKey: root.querySelector(".deepseek-key").value.trim(),
-        deepseekModel: root.querySelector(".deepseek-model").value.trim() || "deepseek-v4-flash"
+        providerId: id,
+        titleLanguage: root.querySelector(".language-select").value || "auto",
+        providers: {
+          ...settings.providers,
+          [id]: {
+            apiKey: root.querySelector(".provider-key").value.trim(),
+            model: root.querySelector(".provider-model").value.trim() || preset.defaultModel || "",
+            baseURL: root.querySelector(".provider-baseurl").value.trim() || preset.baseURL || ""
+          }
+        }
       };
-      await storage.setSettings(settings);
-      root.querySelector(".feedback").textContent = "Settings saved.";
+      try {
+        settings = await config.saveSettings(next);
+        root.querySelector(".feedback").textContent = preset.custom
+          ? "Saved. For a custom endpoint, open the toolbar popup once to grant host access."
+          : "Settings saved.";
+      } catch (error) {
+        root.querySelector(".feedback").textContent = error.message || "Could not save settings.";
+      }
     });
 
     root.querySelector(".start-btn").addEventListener("click", () => startWorkflow(root));
@@ -836,11 +779,36 @@
     });
   }
 
+  function populateProviderSelect(root) {
+    const select = root.querySelector(".provider-select");
+    if (select.options.length) return;
+    for (const [id, preset] of Object.entries(config.PROVIDERS)) {
+      const option = document.createElement("option");
+      option.value = id;
+      option.textContent = preset.label;
+      select.append(option);
+    }
+  }
+
+  function fillProviderFields(root) {
+    const id = root.querySelector(".provider-select").value || settings.providerId;
+    const preset = config.PROVIDERS[id] || config.PROVIDERS[config.DEFAULT_PROVIDER_ID];
+    const cfg = (settings.providers && settings.providers[id]) || {};
+    root.querySelector(".provider-key").value = cfg.apiKey || "";
+    const modelInput = root.querySelector(".provider-model");
+    modelInput.value = cfg.model || preset.defaultModel || "";
+    modelInput.placeholder = preset.defaultModel || "model";
+    root.querySelector(".provider-baseurl").value = cfg.baseURL || preset.baseURL || "";
+    root.querySelector(".baseurl-row").style.display = preset.custom ? "grid" : "none";
+  }
+
   function renderCard() {
     const root = cardRoot();
     if (!root) return;
-    root.querySelector(".deepseek-key").value = settings.deepseekApiKey || "";
-    root.querySelector(".deepseek-model").value = settings.deepseekModel || "deepseek-v4-flash";
+    populateProviderSelect(root);
+    root.querySelector(".provider-select").value = settings.providerId || config.DEFAULT_PROVIDER_ID;
+    root.querySelector(".language-select").value = settings.titleLanguage || "auto";
+    fillProviderFields(root);
   }
 
   function startWorkflow(root) {
@@ -877,13 +845,13 @@
   async function generatePreview(rows, root) {
     stopRequested = false;
     try {
-      settings = await storage.getSettings();
+      settings = await config.loadSettings();
     } catch (error) {
       setCardSummary(root, error.message || "Could not read settings.");
       return;
     }
-    if (!settings.deepseekApiKey) {
-      setCardSummary(root, "Add a DeepSeek API key in Settings first.");
+    if (!config.resolveTransport(settings).apiKey) {
+      setCardSummary(root, "Add a provider API key in Settings first.");
       return;
     }
 
@@ -963,13 +931,13 @@
   }
 
   async function init() {
-    settings = await storage.getSettings();
+    settings = await config.loadSettings();
     createApp();
     renderCard();
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type === "CSR_START_WORKFLOW") {
+    if (message?.type === "TS_START_WORKFLOW") {
       const root = cardRoot();
       if (root) {
         root.querySelector(".card").dataset.open = "true";
@@ -978,25 +946,17 @@
       sendResponse({ ok: true });
       return true;
     }
-    if (message?.type === "CSR_STOP_RENAME") {
+    if (message?.type === "TS_STOP") {
       stopRequested = true;
       sendResponse({ ok: true });
       return true;
     }
-    if (message?.type === "CSR_GET_SETTINGS") {
-      storage.getSettings().then((value) => sendResponse({ ok: true, settings: value }));
-      return true;
-    }
-    if (message?.type === "CSR_SAVE_SETTINGS") {
-      settings = {
-        ...settings,
-        deepseekApiKey: normalizeText(message.settings?.deepseekApiKey),
-        deepseekModel: normalizeText(message.settings?.deepseekModel) || "deepseek-v4-flash"
-      };
-      storage.setSettings(settings).then(() => {
+    if (message?.type === "TS_SETTINGS_UPDATED") {
+      config.loadSettings().then((value) => {
+        settings = value;
         renderCard();
         sendResponse({ ok: true });
-      });
+      }).catch(() => sendResponse({ ok: false }));
       return true;
     }
     return false;

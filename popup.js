@@ -1,66 +1,120 @@
-// Extension popup controller. Keeps provider settings lightweight and opens
-// the full title review workflow inside the active ChatGPT tab.
-const SETTINGS_KEY = "cso.settings";
+// Extension popup controller. Stores provider settings, requests host access
+// for custom endpoints, and opens the title review workflow in the ChatGPT tab.
+const { config } = window.Threadsmith;
 
 let activeTab;
-let settings = {};
+let settings = config.normalizeSettings(null);
+
+function $(id) {
+  return document.getElementById(id);
+}
 
 function isChatGptUrl(url) {
   return url?.startsWith("https://chatgpt.com/") || url?.startsWith("https://chat.openai.com/");
 }
 
-async function getSettings() {
-  const result = await chrome.storage.local.get(SETTINGS_KEY);
-  return result[SETTINGS_KEY] || {};
+function populateProviders() {
+  const select = $("providerSelect");
+  if (select.options.length) return;
+  for (const [id, preset] of Object.entries(config.PROVIDERS)) {
+    const option = document.createElement("option");
+    option.value = id;
+    option.textContent = preset.label;
+    select.append(option);
+  }
 }
 
-async function saveSettings(nextSettings) {
-  await chrome.storage.local.set({ [SETTINGS_KEY]: nextSettings });
+function fillFields() {
+  const id = $("providerSelect").value || settings.providerId;
+  const preset = config.PROVIDERS[id] || config.PROVIDERS[config.DEFAULT_PROVIDER_ID];
+  const cfg = (settings.providers && settings.providers[id]) || {};
+  $("providerKey").value = cfg.apiKey || "";
+  $("providerModel").value = cfg.model || preset.defaultModel || "";
+  $("providerModel").placeholder = preset.defaultModel || "model";
+  $("providerBaseUrl").value = cfg.baseURL || preset.baseURL || "";
+  $("baseUrlRow").style.display = preset.custom ? "grid" : "none";
 }
 
 function render() {
-  document.getElementById("deepseekKey").value = settings.deepseekApiKey || "";
-  document.getElementById("deepseekModel").value = settings.deepseekModel || "deepseek-v4-flash";
+  populateProviders();
+  $("providerSelect").value = settings.providerId || config.DEFAULT_PROVIDER_ID;
+  $("languageSelect").value = settings.titleLanguage || "auto";
+  fillFields();
+}
+
+async function ensureHostPermission(baseURL) {
+  try {
+    const origin = `${new URL(baseURL).origin}/*`;
+    if (await chrome.permissions.contains({ origins: [origin] })) return true;
+    return await chrome.permissions.request({ origins: [origin] });
+  } catch {
+    return false;
+  }
 }
 
 async function init() {
-  settings = await getSettings();
+  settings = await config.loadSettings();
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   activeTab = tab;
+  render();
 
   if (!isChatGptUrl(tab?.url)) {
-    document.getElementById("status").textContent = "Open chatgpt.com to rename sessions.";
-    document.querySelectorAll("input, button").forEach((el) => (el.disabled = true));
+    $("status").textContent = "Open chatgpt.com to rename sessions.";
+    $("startWorkflow").disabled = true;
+    $("stopRename").disabled = true;
     return;
   }
-
-  document.getElementById("status").textContent = "Ready.";
-  render();
+  $("status").textContent = "Ready.";
 }
 
-document.getElementById("saveSettings").addEventListener("click", async () => {
-  settings = {
-    deepseekApiKey: document.getElementById("deepseekKey").value.trim(),
-    deepseekModel: document.getElementById("deepseekModel").value.trim() || "deepseek-v4-flash"
+$("providerSelect").addEventListener("change", fillFields);
+
+$("saveSettings").addEventListener("click", async () => {
+  const id = $("providerSelect").value;
+  const preset = config.PROVIDERS[id] || config.PROVIDERS[config.DEFAULT_PROVIDER_ID];
+  const baseURL = $("providerBaseUrl").value.trim() || preset.baseURL || "";
+  const next = {
+    ...settings,
+    providerId: id,
+    titleLanguage: $("languageSelect").value || "auto",
+    providers: {
+      ...settings.providers,
+      [id]: {
+        apiKey: $("providerKey").value.trim(),
+        model: $("providerModel").value.trim() || preset.defaultModel || "",
+        baseURL
+      }
+    }
   };
-  await saveSettings(settings);
-  document.getElementById("status").textContent = "Settings saved locally.";
+  settings = await config.saveSettings(next);
+
+  if (preset.custom && baseURL) {
+    const granted = await ensureHostPermission(baseURL);
+    $("status").textContent = granted
+      ? "Settings saved."
+      : "Saved, but host access was denied for the custom endpoint.";
+  } else {
+    $("status").textContent = "Settings saved locally.";
+  }
+
   if (activeTab?.id) {
-    await chrome.tabs.sendMessage(activeTab.id, { type: "CSR_SAVE_SETTINGS", settings }).catch(() => {});
+    chrome.tabs.sendMessage(activeTab.id, { type: "TS_SETTINGS_UPDATED" }).catch(() => {});
   }
 });
 
-document.getElementById("startWorkflow").addEventListener("click", async () => {
+$("startWorkflow").addEventListener("click", async () => {
   if (!activeTab?.id) return;
-  document.getElementById("status").textContent = "Opening title review...";
-  const response = await chrome.tabs.sendMessage(activeTab.id, { type: "CSR_START_WORKFLOW" }).catch((error) => ({ ok: false, error: error.message }));
-  document.getElementById("status").textContent = response?.ok ? "Title review opened in ChatGPT." : response?.error || "Could not open title review.";
+  $("status").textContent = "Opening title review...";
+  const response = await chrome.tabs
+    .sendMessage(activeTab.id, { type: "TS_START_WORKFLOW" })
+    .catch((error) => ({ ok: false, error: error.message }));
+  $("status").textContent = response?.ok ? "Title review opened in ChatGPT." : (response?.error || "Could not open title review.");
 });
 
-document.getElementById("stopRename").addEventListener("click", async () => {
+$("stopRename").addEventListener("click", async () => {
   if (!activeTab?.id) return;
-  await chrome.tabs.sendMessage(activeTab.id, { type: "CSR_STOP_RENAME" }).catch(() => {});
-  document.getElementById("status").textContent = "Stop requested.";
+  await chrome.tabs.sendMessage(activeTab.id, { type: "TS_STOP" }).catch(() => {});
+  $("status").textContent = "Stop requested.";
 });
 
 init();
