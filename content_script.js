@@ -10,9 +10,6 @@
 
   let settings = config.normalizeSettings(null);
   let stopRequested = false;
-  let workflowBusy = false;
-  let sidebarObserver = null;
-  let sidebarSyncTimer = null;
 
   function languageFor(sample) {
     return prompts.resolveLanguage(settings.titleLanguage, sample);
@@ -738,6 +735,7 @@
         <div class="tools-bar">
           <button class="sel-all">All</button>
           <button class="sel-none">None</button>
+          <button class="refresh-btn">↻ Refresh</button>
           <div class="spacer"></div>
           <button class="back-btn">← Back</button>
         </div>
@@ -767,13 +765,10 @@
       const opening = card.dataset.open !== "true";
       card.dataset.open = String(opening);
       if (opening && card.dataset.phase === "idle") updateIdleCount(root);
-      if (opening && card.dataset.phase === "workflow") startSidebarSync(root);
-      if (!opening) stopSidebarSync();
     });
 
     root.querySelector(".close-btn").addEventListener("click", () => {
       root.querySelector(".card").dataset.open = "false";
-      stopSidebarSync();
     });
 
     // Idle phase
@@ -810,7 +805,6 @@
     // Workflow phase
     root.querySelector(".back-btn").addEventListener("click", () => {
       stopRequested = true;
-      stopSidebarSync();
       switchPhase(root, "idle");
       updateIdleCount(root);
     });
@@ -827,6 +821,7 @@
       allRows(root).forEach((r) => (r.querySelector('input[type="checkbox"]').checked = false));
       updateWorkflowCount(root);
     });
+    root.querySelector(".refresh-btn").addEventListener("click", () => refreshSessions(root));
     root.querySelector(".session-list").addEventListener("change", () => updateWorkflowCount(root));
     root.querySelector(".session-list").addEventListener("input", () => {
       const hasTitle = allRows(root).some((r) => normalizeText(r.querySelector(".title")?.value || ""));
@@ -906,63 +901,33 @@
     renderSessionRows(root, visibleSidebarSessions());
     updateWorkflowCount(root);
     switchPhase(root, "workflow");
-    startSidebarSync(root);
   }
 
-  // Append rows for any sidebar sessions we have not listed yet. Never removes
-  // or reorders existing rows, so checkboxes, generated titles, and statuses
-  // are preserved as the user scrolls the sidebar.
-  function syncNewSessions(root) {
-    if (workflowBusy) return;
+  // Re-read the sidebar on demand. Lists sessions in sidebar order (new chats
+  // on top), reuses existing rows by id so generated titles, selections, and
+  // statuses survive, and keeps previously-listed sessions that have since
+  // scrolled out of view (appended after the visible ones).
+  function refreshSessions(root) {
     const list = root.querySelector(".session-list");
-    const known = new Set(allRows(root).map((row) => row.dataset.id));
-    let added = 0;
-    for (const session of visibleSidebarSessions()) {
-      if (known.has(session.id)) continue;
-      list.querySelector(".no-sessions")?.remove();
-      list.append(createSessionRow(session, { checked: false }));
-      known.add(session.id);
-      added += 1;
+    const existing = new Map(allRows(root).map((row) => [row.dataset.id, row]));
+    const visible = visibleSidebarSessions();
+    const visibleIds = new Set(visible.map((session) => session.id));
+
+    const ordered = [];
+    for (const session of visible) {
+      ordered.push(existing.get(session.id) || createSessionRow(session, { checked: false }));
     }
-    if (added) updateWorkflowCount(root);
-  }
-
-  function findSidebarScroller() {
-    const anchor = document.querySelector('a[href*="/c/"]');
-    let element = anchor?.parentElement;
-    while (element && element !== document.body) {
-      const style = getComputedStyle(element);
-      if (/(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 20) {
-        return element;
-      }
-      element = element.parentElement;
+    for (const row of allRows(root)) {
+      if (!visibleIds.has(row.dataset.id)) ordered.push(row);
     }
-    return null;
-  }
 
-  function findSidebarContainer() {
-    const anchor = document.querySelector('a[href*="/c/"]');
-    return anchor?.closest("nav") || findSidebarScroller() || document.body;
-  }
-
-  // Watch the sidebar for lazily-loaded conversations and grow the list live.
-  function startSidebarSync(root) {
-    stopSidebarSync();
-    const target = findSidebarContainer();
-    if (!target) return;
-    sidebarObserver = new MutationObserver(() => {
-      clearTimeout(sidebarSyncTimer);
-      sidebarSyncTimer = setTimeout(() => syncNewSessions(root), 250);
-    });
-    sidebarObserver.observe(target, { childList: true, subtree: true });
-  }
-
-  function stopSidebarSync() {
-    if (sidebarObserver) {
-      sidebarObserver.disconnect();
-      sidebarObserver = null;
+    list.querySelector(".no-sessions")?.remove();
+    if (!ordered.length) {
+      renderSessionRows(root, []);
+    } else {
+      for (const row of ordered) list.append(row); // re-appending moves existing nodes
     }
-    clearTimeout(sidebarSyncTimer);
+    updateWorkflowCount(root);
   }
 
   async function generatePreview(rows, root) {
@@ -981,7 +946,7 @@
     root.querySelector(".wf-stop").style.display = "";
     root.querySelector(".wf-generate").disabled = true;
     root.querySelector(".back-btn").disabled = true;
-    workflowBusy = true;
+    root.querySelector(".refresh-btn").disabled = true;
 
     let generated = 0, repaired = 0, skipped = 0;
 
@@ -1007,12 +972,12 @@
       }
     }
 
-    workflowBusy = false;
     const hasTitle = allRows(root).some((r) => normalizeText(r.querySelector(".title")?.value || ""));
     root.querySelector(".wf-apply").disabled = !hasTitle;
     root.querySelector(".wf-stop").style.display = "none";
     root.querySelector(".wf-generate").disabled = false;
     root.querySelector(".back-btn").disabled = false;
+    root.querySelector(".refresh-btn").disabled = false;
     setCardSummary(root, `Done — ${generated} ready${repaired ? `, ${repaired} repaired` : ""}${skipped ? `, ${skipped} skipped` : ""}.`);
   }
 
@@ -1060,7 +1025,7 @@
     root.querySelector(".wf-apply").disabled = true;
     root.querySelector(".wf-generate").disabled = true;
     root.querySelector(".back-btn").disabled = true;
-    workflowBusy = true;
+    root.querySelector(".refresh-btn").disabled = true;
 
     let renamed = 0, failed = 0;
 
@@ -1083,11 +1048,11 @@
       }
     }
 
-    workflowBusy = false;
     root.querySelector(".wf-stop").style.display = "none";
     root.querySelector(".wf-apply").disabled = false;
     root.querySelector(".wf-generate").disabled = false;
     root.querySelector(".back-btn").disabled = false;
+    root.querySelector(".refresh-btn").disabled = false;
     setCardSummary(root, `Done — ${renamed} renamed${failed ? `, ${failed} failed` : ""}.`);
   }
 
