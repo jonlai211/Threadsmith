@@ -15,13 +15,13 @@ applied rename can be undone.
 
 ## Screenshots
 
-Apply clear titles with one-click undo — and a tidied sidebar:
-
-![Applied renames with undo and a tidied sidebar](docs/screenshots/02-renamed.png)
-
 Review and preview suggestions before anything changes:
 
 ![Reviewing and generating title suggestions](docs/screenshots/01-review.png)
+
+Apply clear titles with one-click undo — and a tidied sidebar:
+
+![Applied renames with undo and a tidied sidebar](docs/screenshots/02-renamed.png)
 
 ## Features
 
