@@ -13,6 +13,16 @@ applied rename can be undone.
 - 🔒 **Privacy:** [`PRIVACY.md`](PRIVACY.md)
 - 🧩 **Chrome Web Store:** _coming soon_
 
+## Screenshots
+
+Apply clear titles with one-click undo — and a tidied sidebar:
+
+![Applied renames with undo and a tidied sidebar](docs/screenshots/02-renamed.png)
+
+Review and preview suggestions before anything changes:
+
+![Reviewing and generating title suggestions](docs/screenshots/01-review.png)
+
 ## Features
 
 - **Review before you rename.** Generate title previews, edit them, uncheck any
@@ -22,8 +32,9 @@ applied rename can be undone.
   OpenAI, OpenRouter, or a custom endpoint — using your own key.
 - **Bilingual titles.** Simplified Chinese or English, or Auto to match each
   conversation. Proper nouns, brands, and technical names are kept as-is.
-- **Live sidebar sync.** As you scroll ChatGPT's sidebar to load more history,
-  the review list grows automatically.
+- **Refresh on demand.** Scroll the sidebar to load more history (or start a new
+  chat), then click Refresh to pull new conversations into the list — in sidebar
+  order, without losing your selections or generated previews.
 - **Private by design.** No backend; conversation text goes only to the provider
   you configure. Settings stay in `chrome.storage.local`.
 
@@ -32,7 +43,7 @@ applied rename can be undone.
 1. Open `https://chatgpt.com`.
 2. Click the floating Threadsmith launcher (or the toolbar popup).
 3. Click **Generate Titles** to open the review list.
-4. Scroll the ChatGPT sidebar to load more history — the list grows live.
+4. Scroll the sidebar to load more history (or start a new chat), then click **Refresh** to update the list.
 5. Select sessions (**All** / **None**), then **Generate** previews.
 6. Edit or uncheck anything you don't like, then **Apply**.
 7. Use the per-row **Undo** to restore an original title if needed.

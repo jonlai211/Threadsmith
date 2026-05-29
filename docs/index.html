@@ -167,6 +167,16 @@
     .card h4 { margin: 0 0 6px; font-size: 16px; }
     .card p { margin: 0; color: var(--text-2); font-size: 14px; }
 
+    /* Screenshots */
+    .shots { display: grid; gap: 26px; max-width: 940px; margin: 0 auto; }
+    .shot { margin: 0; }
+    .shot img {
+      width: 100%; height: auto; display: block;
+      border: 1px solid var(--border); border-radius: 14px;
+      box-shadow: var(--shadow);
+    }
+    .shot figcaption { margin-top: 12px; text-align: center; color: var(--text-2); font-size: 14px; }
+
     /* Provider chips */
     .chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
     .chip {
@@ -285,7 +295,7 @@
         <div class="card">
           <div class="step">1</div>
           <h4>Open the panel</h4>
-          <p>Click the Threadsmith launcher on chatgpt.com. Scroll the sidebar and the review list grows live with your history.</p>
+          <p>Click the Threadsmith launcher on chatgpt.com. Scroll the sidebar to load more history, then hit Refresh to pull it into the list.</p>
         </div>
         <div class="card">
           <div class="step">2</div>
@@ -297,6 +307,23 @@
           <h4>Apply &amp; undo</h4>
           <p>Apply the renames through ChatGPT's own editor. Changed your mind? Undo any title back to the original in one click.</p>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screens">
+    <div class="wrap">
+      <h2>See it in action</h2>
+      <p class="sub">Real renames inside ChatGPT — review, apply, and undo.</p>
+      <div class="shots">
+        <figure class="shot">
+          <img src="screenshots/02-renamed.png" alt="Applied renames with undo and a tidied sidebar" loading="lazy">
+          <figcaption>Applied titles with one-click Undo — and a tidied sidebar.</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/01-review.png" alt="Reviewing and generating title suggestions" loading="lazy">
+          <figcaption>Pick conversations and preview titles before anything changes.</figcaption>
+        </figure>
       </div>
     </div>
   </section>
