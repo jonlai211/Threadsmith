@@ -95,7 +95,7 @@
   }
 
   async function openConversation(id, url) {
-    if (getSessionIdFromUrl(location.href) === id) return;
+    if (getSessionIdFromUrl(location.href) === id) return waitForConversationContent();
 
     const anchor = [...document.querySelectorAll('a[href*="/c/"]')].find((item) => getSessionIdFromUrl(item.href || "") === id);
     if (anchor) {
@@ -110,7 +110,7 @@
       if (getSessionIdFromUrl(location.href) === id) break;
       await sleep(250);
     }
-    await waitForConversationContent();
+    return waitForConversationContent();
   }
 
   async function waitForConversationContent() {
@@ -233,8 +233,7 @@
   }
 
   async function generateTitleSuggestion(target) {
-    await openConversation(target.id, target.url);
-    const messages = await waitForConversationContent();
+    const messages = await openConversation(target.id, target.url);
     if (!messages.length) throw new Error("No conversation text found.");
     if (getSessionIdFromUrl(location.href) !== target.id) {
       throw new Error("Could not open the target conversation before reading content.");
@@ -365,11 +364,17 @@
     root.querySelector(".wf-summary").textContent = text;
   }
 
-  function setRowStatus(row, text, cls = "") {
+  function setRowStatus(row, text, cls = "", detail = "") {
     const badge = row.querySelector(".row-status");
     badge.className = `row-status ${cls}`.trim();
     badge.textContent = text;
-    badge.title = text;
+    badge.title = detail || text;
+
+    const detailEl = row.querySelector(".row-detail");
+    if (detailEl) {
+      detailEl.textContent = detail || "";
+      row.classList.toggle("has-detail", Boolean(detail));
+    }
   }
 
   function updateWorkflowCount(root) {
@@ -573,9 +578,17 @@
           font: 600 10.5px/1.5 system-ui;
           white-space: nowrap; border: 1px solid var(--bb);
           align-self: center;
+          max-width: 130px; overflow: hidden; text-overflow: ellipsis;
         }
         .row-status.ok    { background: rgba(16,185,129,.12); color: #34d399; border-color: rgba(16,185,129,.22); }
         .row-status.error { background: rgba(239,68,68,.12);  color: #f87171; border-color: rgba(239,68,68,.22); }
+        .row-detail {
+          grid-column: 1 / 4; grid-row: 3;
+          display: none; padding-top: 4px;
+          font-size: 11px; line-height: 1.45; color: #f87171;
+          overflow-wrap: anywhere; word-break: break-word;
+        }
+        .row.has-detail .row-detail { display: block; }
         .row-title-wrap {
           grid-column: 1 / 4; grid-row: 2;
           display: none; padding-top: 4px;
@@ -832,6 +845,7 @@
         <div class="row-old"></div>
         <div class="row-status">Queued</div>
         <div class="row-title-wrap"><input class="title" type="text" placeholder="Generate to preview"></div>
+        <div class="row-detail"></div>
       `;
       row.querySelector(".row-old").textContent = target.title;
       row._target = target;
@@ -879,7 +893,7 @@
         setRowStatus(row, suggestion.repaired ? "Repaired" : "Ready", "ok");
       } catch (error) {
         skipped++;
-        setRowStatus(row, `Skipped: ${error.message || "generation failed"}`, "error");
+        setRowStatus(row, "Skipped", "error", error.message || "generation failed");
       }
     }
 
@@ -913,13 +927,20 @@
       setRowStatus(row, "Renaming");
       setCardSummary(root, `${index + 1} / ${readyRows.length} — ${title}`);
       try {
-        await openConversation(target.id, target.url);
-        await renameInChatGpt(target.id, title);
+        // ChatGPT's sidebar options menu can rename a conversation without
+        // opening it, so skip navigation in the common case. Only fall back to
+        // opening the conversation (slow) if the sidebar path can't be driven.
+        try {
+          await renameInChatGpt(target.id, title);
+        } catch (firstError) {
+          await openConversation(target.id, target.url);
+          await renameInChatGpt(target.id, title);
+        }
         renamed++;
         setRowStatus(row, "Renamed", "ok");
       } catch (error) {
         failed++;
-        setRowStatus(row, "Failed", "error");
+        setRowStatus(row, "Failed", "error", error.message || "rename failed");
       }
     }
 

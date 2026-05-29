@@ -49,27 +49,36 @@ async function requestChatJson({ transport, payload, label }) {
   };
   if (payload.jsonMode) baseBody.response_format = { type: "json_object" };
 
-  let data = await postChatCompletions(transport, baseBody, label);
-  let choice = data?.choices?.[0] || {};
-  let content = choice.message?.content || "";
-  let parsed = content ? safeJsonParse(content) : null;
-  if (parsed) return { parsed, content };
+  let content = "";
+  try {
+    const data = await postChatCompletions(transport, baseBody, label);
+    const choice = data?.choices?.[0] || {};
+    content = choice.message?.content || "";
+    const parsed = content ? safeJsonParse(content) : null;
+    if (parsed) return { parsed, content };
+  } catch (error) {
+    // Strict JSON mode (response_format) makes some providers return a 400
+    // "failed to validate JSON" instead of the raw output. That is recoverable
+    // by retrying without strict mode. Any other HTTP error is fatal.
+    const recoverable = payload.jsonMode && error.status === 400 && /json|validate/i.test(error.message || "");
+    if (!recoverable) throw error;
+  }
 
   // Retry once: drop JSON mode, nudge for compact JSON, raise the token ceiling.
   const retryBody = {
     ...baseBody,
     messages: [
       ...payload.messages,
-      { role: "user", content: "The previous response was empty or invalid. Return ONLY a compact JSON object now. No markdown. No explanation." }
+      { role: "user", content: "Return ONLY a compact JSON object now, exactly like {\"title\":\"...\"}. No markdown. No explanation." }
     ],
     max_tokens: Math.max(baseBody.max_tokens, 700)
   };
   delete retryBody.response_format;
 
-  data = await postChatCompletions(transport, retryBody, label);
-  choice = data?.choices?.[0] || {};
+  const data = await postChatCompletions(transport, retryBody, label);
+  const choice = data?.choices?.[0] || {};
   content = choice.message?.content || "";
-  parsed = content ? safeJsonParse(content) : null;
+  const parsed = content ? safeJsonParse(content) : null;
   if (!parsed) {
     const finish = choice.finish_reason ? ` finish_reason=${choice.finish_reason}` : "";
     const reason = choice.message?.reasoning_content ? ` reasoning=${String(choice.message.reasoning_content).slice(0, 120)}` : "";
