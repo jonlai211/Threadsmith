@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Threadsmith",
   "description": "Shape messy ChatGPT history into clear, searchable titles.",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "permissions": ["activeTab", "storage", "tabs"],
   "host_permissions": [
     "https://chatgpt.com/*",

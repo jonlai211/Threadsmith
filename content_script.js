@@ -10,6 +10,9 @@
 
   let settings = config.normalizeSettings(null);
   let stopRequested = false;
+  let workflowBusy = false;
+  let sidebarObserver = null;
+  let sidebarSyncTimer = null;
 
   function languageFor(sample) {
     return prompts.resolveLanguage(settings.titleLanguage, sample);
@@ -301,11 +304,12 @@
     return null;
   }
 
-  async function renameInChatGpt(id, title) {
+  async function renameInChatGpt(id, title, { validate = true } = {}) {
     const newTitle = normalizeText(title);
     if (!id) throw new Error("Open a saved ChatGPT conversation first.");
     if (!newTitle) throw new Error("Enter a title before renaming.");
-    if (validators.isBadTitle(newTitle, languageFor(newTitle))) throw new Error(`Refused bad title: ${newTitle}`);
+    // Skip the AI-quality guard when restoring a user's original title.
+    if (validate && validators.isBadTitle(newTitle, languageFor(newTitle))) throw new Error(`Refused bad title: ${newTitle}`);
 
     let editor = await waitForTitleEditor(250);
     let lastError = "Could not find ChatGPT's title editor.";
@@ -342,6 +346,16 @@
     return { id, title: newTitle };
   }
 
+  // Rename via the sidebar options menu; fall back to opening the conversation.
+  async function renameWithFallback(target, title, options) {
+    try {
+      await renameInChatGpt(target.id, title, options);
+    } catch (firstError) {
+      await openConversation(target.id, target.url);
+      await renameInChatGpt(target.id, title, options);
+    }
+  }
+
   // ─── Card UI helpers ──────────────────────────────────────────────────────
 
   function cardRoot() {
@@ -373,6 +387,7 @@
     const detailEl = row.querySelector(".row-detail");
     if (detailEl) {
       detailEl.textContent = detail || "";
+      detailEl.classList.toggle("error", cls === "error");
       row.classList.toggle("has-detail", Boolean(detail));
     }
   }
@@ -585,10 +600,17 @@
         .row-detail {
           grid-column: 1 / 4; grid-row: 3;
           display: none; padding-top: 4px;
-          font-size: 11px; line-height: 1.45; color: #f87171;
+          font-size: 11px; line-height: 1.45; color: var(--text2);
           overflow-wrap: anywhere; word-break: break-word;
         }
         .row.has-detail .row-detail { display: block; }
+        .row-detail.error { color: #f87171; }
+        .row-detail .detail-text { color: var(--old-c); }
+        .undo-btn {
+          margin-left: 6px; padding: 1px 8px;
+          border-radius: 999px; font: 600 10.5px/1.5 system-ui;
+          vertical-align: baseline;
+        }
         .row-title-wrap {
           grid-column: 1 / 4; grid-row: 2;
           display: none; padding-top: 4px;
@@ -719,10 +741,13 @@
       const opening = card.dataset.open !== "true";
       card.dataset.open = String(opening);
       if (opening && card.dataset.phase === "idle") updateIdleCount(root);
+      if (opening && card.dataset.phase === "workflow") startSidebarSync(root);
+      if (!opening) stopSidebarSync();
     });
 
     root.querySelector(".close-btn").addEventListener("click", () => {
       root.querySelector(".card").dataset.open = "false";
+      stopSidebarSync();
     });
 
     // Idle phase
@@ -759,6 +784,7 @@
     // Workflow phase
     root.querySelector(".back-btn").addEventListener("click", () => {
       stopRequested = true;
+      stopSidebarSync();
       switchPhase(root, "idle");
       updateIdleCount(root);
     });
@@ -824,36 +850,93 @@
     fillProviderFields(root);
   }
 
-  function startWorkflow(root) {
-    const targets = visibleSidebarSessions();
+  function createSessionRow(target, { checked = false } = {}) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.dataset.id = target.id;
+    row.innerHTML = `
+      <input type="checkbox" ${checked ? "checked" : ""}>
+      <div class="row-old"></div>
+      <div class="row-status">Queued</div>
+      <div class="row-title-wrap"><input class="title" type="text" placeholder="Generate to preview"></div>
+      <div class="row-detail"></div>
+    `;
+    row.querySelector(".row-old").textContent = target.title;
+    row._target = target;
+    return row;
+  }
+
+  function renderSessionRows(root, targets) {
     const list = root.querySelector(".session-list");
     list.innerHTML = "";
-
     if (!targets.length) {
-      list.innerHTML = `<div class="no-sessions">No visible sessions found.<br>Scroll the ChatGPT sidebar to load more.</div>`;
-      switchPhase(root, "workflow");
-      setCardSummary(root, "0 / 0 selected");
+      list.innerHTML = `<div class="no-sessions">No sessions visible yet.<br>Scroll the ChatGPT sidebar to load your history.</div>`;
       return;
     }
+    targets.forEach((target, index) => list.append(createSessionRow(target, { checked: index === 0 })));
+  }
 
-    for (const [index, target] of targets.entries()) {
-      const row = document.createElement("div");
-      row.className = "row";
-      row.dataset.id = target.id;
-      row.innerHTML = `
-        <input type="checkbox" ${index === 0 ? "checked" : ""}>
-        <div class="row-old"></div>
-        <div class="row-status">Queued</div>
-        <div class="row-title-wrap"><input class="title" type="text" placeholder="Generate to preview"></div>
-        <div class="row-detail"></div>
-      `;
-      row.querySelector(".row-old").textContent = target.title;
-      row._target = target;
-      list.append(row);
-    }
-
+  function startWorkflow(root) {
+    renderSessionRows(root, visibleSidebarSessions());
     updateWorkflowCount(root);
     switchPhase(root, "workflow");
+    startSidebarSync(root);
+  }
+
+  // Append rows for any sidebar sessions we have not listed yet. Never removes
+  // or reorders existing rows, so checkboxes, generated titles, and statuses
+  // are preserved as the user scrolls the sidebar.
+  function syncNewSessions(root) {
+    if (workflowBusy) return;
+    const list = root.querySelector(".session-list");
+    const known = new Set(allRows(root).map((row) => row.dataset.id));
+    let added = 0;
+    for (const session of visibleSidebarSessions()) {
+      if (known.has(session.id)) continue;
+      list.querySelector(".no-sessions")?.remove();
+      list.append(createSessionRow(session, { checked: false }));
+      known.add(session.id);
+      added += 1;
+    }
+    if (added) updateWorkflowCount(root);
+  }
+
+  function findSidebarScroller() {
+    const anchor = document.querySelector('a[href*="/c/"]');
+    let element = anchor?.parentElement;
+    while (element && element !== document.body) {
+      const style = getComputedStyle(element);
+      if (/(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 20) {
+        return element;
+      }
+      element = element.parentElement;
+    }
+    return null;
+  }
+
+  function findSidebarContainer() {
+    const anchor = document.querySelector('a[href*="/c/"]');
+    return anchor?.closest("nav") || findSidebarScroller() || document.body;
+  }
+
+  // Watch the sidebar for lazily-loaded conversations and grow the list live.
+  function startSidebarSync(root) {
+    stopSidebarSync();
+    const target = findSidebarContainer();
+    if (!target) return;
+    sidebarObserver = new MutationObserver(() => {
+      clearTimeout(sidebarSyncTimer);
+      sidebarSyncTimer = setTimeout(() => syncNewSessions(root), 250);
+    });
+    sidebarObserver.observe(target, { childList: true, subtree: true });
+  }
+
+  function stopSidebarSync() {
+    if (sidebarObserver) {
+      sidebarObserver.disconnect();
+      sidebarObserver = null;
+    }
+    clearTimeout(sidebarSyncTimer);
   }
 
   async function generatePreview(rows, root) {
@@ -872,6 +955,7 @@
     root.querySelector(".wf-stop").style.display = "";
     root.querySelector(".wf-generate").disabled = true;
     root.querySelector(".back-btn").disabled = true;
+    workflowBusy = true;
 
     let generated = 0, repaired = 0, skipped = 0;
 
@@ -897,12 +981,48 @@
       }
     }
 
+    workflowBusy = false;
     const hasTitle = allRows(root).some((r) => normalizeText(r.querySelector(".title")?.value || ""));
     root.querySelector(".wf-apply").disabled = !hasTitle;
     root.querySelector(".wf-stop").style.display = "none";
     root.querySelector(".wf-generate").disabled = false;
     root.querySelector(".back-btn").disabled = false;
     setCardSummary(root, `Done — ${generated} ready${repaired ? `, ${repaired} repaired` : ""}${skipped ? `, ${skipped} skipped` : ""}.`);
+  }
+
+  // After a rename, show "Renamed" plus the old title and an Undo control that
+  // restores the original (bypassing the AI-quality guard).
+  function attachUndo(row, target, root) {
+    setRowStatus(row, "Renamed", "ok");
+    const detailEl = row.querySelector(".row-detail");
+    detailEl.classList.remove("error");
+    detailEl.innerHTML = "";
+
+    const text = document.createElement("span");
+    text.className = "detail-text";
+    text.textContent = `was: ${target.title}`;
+
+    const button = document.createElement("button");
+    button.className = "undo-btn";
+    button.textContent = "Undo";
+    button.addEventListener("click", () => undoRename(row, target, button, root));
+
+    detailEl.append(text, button);
+    row.classList.add("has-detail");
+  }
+
+  async function undoRename(row, target, button, root) {
+    button.disabled = true;
+    const original = button.textContent;
+    button.textContent = "Restoring…";
+    try {
+      await renameWithFallback(target, target.title, { validate: false });
+      setRowStatus(row, "Restored", "ok");
+    } catch (error) {
+      button.textContent = original;
+      button.disabled = false;
+      setCardSummary(root, `Undo failed: ${error.message || "rename failed"}`);
+    }
   }
 
   async function applyPreview(rows, root) {
@@ -914,6 +1034,7 @@
     root.querySelector(".wf-apply").disabled = true;
     root.querySelector(".wf-generate").disabled = true;
     root.querySelector(".back-btn").disabled = true;
+    workflowBusy = true;
 
     let renamed = 0, failed = 0;
 
@@ -927,23 +1048,16 @@
       setRowStatus(row, "Renaming");
       setCardSummary(root, `${index + 1} / ${readyRows.length} — ${title}`);
       try {
-        // ChatGPT's sidebar options menu can rename a conversation without
-        // opening it, so skip navigation in the common case. Only fall back to
-        // opening the conversation (slow) if the sidebar path can't be driven.
-        try {
-          await renameInChatGpt(target.id, title);
-        } catch (firstError) {
-          await openConversation(target.id, target.url);
-          await renameInChatGpt(target.id, title);
-        }
+        await renameWithFallback(target, title);
         renamed++;
-        setRowStatus(row, "Renamed", "ok");
+        attachUndo(row, target, root);
       } catch (error) {
         failed++;
         setRowStatus(row, "Failed", "error", error.message || "rename failed");
       }
     }
 
+    workflowBusy = false;
     root.querySelector(".wf-stop").style.display = "none";
     root.querySelector(".wf-apply").disabled = false;
     root.querySelector(".wf-generate").disabled = false;

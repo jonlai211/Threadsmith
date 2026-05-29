@@ -16,22 +16,25 @@ Shape messy ChatGPT history into clear, searchable titles.
 ## Workflow
 
 1. Open `https://chatgpt.com`.
-2. Scroll the ChatGPT sidebar until the sessions you want are visible.
-3. Click the floating `R` button or the extension popup.
-4. Click `Review Titles`.
-5. Select sessions.
+2. Click the floating launcher button or the extension popup.
+3. Click `Generate Titles` to enter the review list.
+4. Scroll the ChatGPT sidebar to load more history — the review list grows live as new conversations appear.
+5. Select sessions (`All` / `None`).
 6. Generate title previews.
 7. Edit or uncheck anything you do not like.
 8. Apply selected renames.
+9. After a rename, use the per-row `Undo` to restore the original title.
 
 ## Current Scope
 
-- Reads visible ChatGPT sidebar sessions only.
+- Reads ChatGPT sidebar sessions and keeps the review list in sync as you scroll the sidebar to load more history.
 - Opens each selected session and extracts recent conversation text.
 - Generates titles through any OpenAI-compatible provider (DeepSeek, OpenAI, OpenRouter, or a custom endpoint).
-- Generates Simplified Chinese titles by default and keeps proper nouns in English. (English output is a wired-in language slot, tuned later.)
+- Title language is selectable (Auto / 中文 / English); Auto detects the language from each conversation.
+- Keeps proper nouns, brands, and technical names in their original form.
 - Requires preview and confirmation before writing titles back to ChatGPT.
 - Skips bad or failed suggestions instead of using generic fallback titles.
+- Each applied rename can be undone to its original title from the review list.
 
 ## Settings
 
@@ -55,3 +58,10 @@ endpoint requires granting host access from the toolbar popup (`optional_host_pe
 
 5. Open `https://chatgpt.com`.
 6. Reload the extension after code changes.
+
+## Privacy
+
+Threadsmith has no backend. Conversation text is sent only to the AI provider
+you configure, using your own API key, solely to generate a title. Settings are
+stored locally and nothing is collected by the developer. See
+[`PRIVACY.md`](PRIVACY.md) for the full policy.
