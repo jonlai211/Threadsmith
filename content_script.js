@@ -283,11 +283,37 @@
     return null;
   }
 
-  async function waitForMenuItemText(text, timeout = 1500) {
+  // ChatGPT localizes its menu, so match the "Rename" item across the UI
+  // languages it ships. Exact (case-insensitive) match only — never guess a
+  // menu item, since the wrong one could be Delete or Archive.
+  const RENAME_MENU_LABELS = [
+    "rename",            // English
+    "重命名",            // Simplified Chinese
+    "重新命名",          // Traditional Chinese
+    "名前を変更",        // Japanese
+    "名称変更",          // Japanese (variant)
+    "이름 바꾸기",        // Korean
+    "이름 변경",          // Korean (variant)
+    "renommer",          // French
+    "umbenennen",        // German
+    "cambiar nombre",    // Spanish
+    "renombrar",         // Spanish (variant)
+    "rinomina",          // Italian
+    "renomear",          // Portuguese
+    "переименовать",     // Russian
+    "yeniden adlandır",  // Turkish
+    "إعادة تسمية",       // Arabic
+    "ganti nama",        // Indonesian
+    "đổi tên",           // Vietnamese
+    "เปลี่ยนชื่อ"          // Thai
+  ];
+
+  async function waitForMenuItem(labels, timeout = 1500) {
+    const wanted = new Set(labels.map((label) => normalizeText(label).toLowerCase()));
     const started = Date.now();
     while (Date.now() - started < timeout) {
       const item = [...document.querySelectorAll('[role="menuitem"]')]
-        .find((candidate) => normalizeText(candidate.textContent) === text);
+        .find((candidate) => wanted.has(normalizeText(candidate.textContent).toLowerCase()));
       if (item) return item;
       await sleep(100);
     }
@@ -325,7 +351,7 @@
       }
 
       clickElement(optionsButton);
-      const renameItem = await waitForMenuItemText("Rename");
+      const renameItem = await waitForMenuItem(RENAME_MENU_LABELS);
       if (!renameItem) {
         lastError = "Could not find ChatGPT's Rename menu item.";
         continue;
