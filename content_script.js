@@ -92,7 +92,7 @@
     const clean = normalizeText(title);
     return !clean ||
       clean.length < 4 ||
-      /[^]{1,}|(\?\?)/.test(clean) ||
+      /[\uFFFD]|(\?\?)/.test(clean) ||
       BAD_AI_TITLE_RE.test(clean) ||
       BAD_UI_TITLE_RE.test(clean) ||
       looksLikeSentenceTitle(clean);
@@ -451,6 +451,7 @@
     const badge = row.querySelector(".row-status");
     badge.className = `row-status ${cls}`.trim();
     badge.textContent = text;
+    badge.title = text;
   }
 
   function updateWorkflowCount(root) {
@@ -747,7 +748,6 @@
         <div class="tools-bar">
           <button class="sel-all">All</button>
           <button class="sel-none">None</button>
-          <button class="sel-five">First 5</button>
           <div class="spacer"></div>
           <button class="back-btn">← Back</button>
         </div>
@@ -810,11 +810,6 @@
       allRows(root).forEach((r) => (r.querySelector('input[type="checkbox"]').checked = false));
       updateWorkflowCount(root);
     });
-    root.querySelector(".sel-five").addEventListener("click", () => {
-      allRows(root).forEach((r, i) => (r.querySelector('input[type="checkbox"]').checked = i < 5));
-      updateWorkflowCount(root);
-    });
-
     root.querySelector(".session-list").addEventListener("change", () => updateWorkflowCount(root));
     root.querySelector(".session-list").addEventListener("input", () => {
       const hasTitle = allRows(root).some((r) => normalizeText(r.querySelector(".title")?.value || ""));
@@ -856,7 +851,7 @@
       row.className = "row";
       row.dataset.id = target.id;
       row.innerHTML = `
-        <input type="checkbox" ${index < 5 ? "checked" : ""}>
+        <input type="checkbox" ${index === 0 ? "checked" : ""}>
         <div class="row-old"></div>
         <div class="row-status">Queued</div>
         <div class="row-title-wrap"><input class="title" type="text" placeholder="Generate to preview"></div>
@@ -907,7 +902,7 @@
         setRowStatus(row, suggestion.repaired ? "Repaired" : "Ready", "ok");
       } catch (error) {
         skipped++;
-        setRowStatus(row, "Skipped", "error");
+        setRowStatus(row, `Skipped: ${error.message || "generation failed"}`, "error");
       }
     }
 

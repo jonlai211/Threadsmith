@@ -7,6 +7,7 @@ Thumbs.db
 dist/
 build/
 node_modules/
+.claude/
 
 # Keep API keys in chrome.storage.local, never in source files.
 .env
