@@ -6,6 +6,8 @@
   <title>Threadsmith — Clear, searchable titles for your ChatGPT history</title>
   <meta name="description" content="Threadsmith turns messy ChatGPT conversation titles into clear, searchable ones — in Chinese or English — using your own AI provider. Private by design.">
   <meta name="theme-color" content="#0d1117">
+  <link rel="icon" type="image/png" href="icon128.png">
+  <link rel="apple-touch-icon" href="icon128.png">
 
   <!-- Social sharing -->
   <meta property="og:type" content="website">
@@ -57,10 +59,8 @@
     /* Brand logo mark */
     .logo {
       width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
-      background: linear-gradient(135deg, var(--accent-a), var(--accent-b));
-      display: inline-flex; align-items: center; justify-content: center;
-      color: #fff; font: 800 14px/1 system-ui;
-      box-shadow: 0 0 14px rgba(16,185,129,.35);
+      display: block; object-fit: cover;
+      box-shadow: 0 0 14px rgba(16,185,129,.3);
     }
 
     /* Nav */
@@ -216,15 +216,14 @@
 
   <nav>
     <div class="wrap nav-in">
-      <span class="logo">T</span>
+      <img class="logo" src="icon128.png" alt="Threadsmith logo">
       <span class="brand">Threadsmith</span>
       <span class="spacer"></span>
       <div class="nav-links">
         <a href="#how">How it works</a>
         <a href="#privacy">Privacy</a>
         <a href="#faq">FAQ</a>
-        <!-- TODO: replace # with your public repo URL -->
-        <a href="#">GitHub</a>
+        <a href="https://github.com/jonlai211/Threadsmith">GitHub</a>
       </div>
     </div>
   </nav>
@@ -248,20 +247,20 @@
       <div class="showcase">
         <div class="panel before">
           <h3>Before</h3>
-          <div class="row">New chat</div>
-          <div class="row">ChatGPT</div>
-          <div class="row">我想知道怎么去掉视频水印…</div>
-          <div class="row">help with rental car insurance</div>
-          <div class="row">Untitled</div>
+          <div class="row">如何去除视频里的水印</div>
+          <div class="row">帮忙改一下我的简历</div>
+          <div class="row">比特币减半相关讨论</div>
+          <div class="row">Question about rental car insurance</div>
+          <div class="row">Help with useEffect not working</div>
         </div>
         <div class="arrow">→</div>
         <div class="panel after">
           <h3>After</h3>
-          <div class="row">PR — 竖屏剪辑缩放</div>
-          <div class="row">去水印技巧 — 方法汇总</div>
-          <div class="row">Mastercard — 租车保险拒赔</div>
-          <div class="row">Car Rental — Hertz Coverage Guide</div>
-          <div class="row">React — useEffect 清理</div>
+          <div class="row">视频去水印 — 方法与工具</div>
+          <div class="row">简历 — 后端工程师投递版</div>
+          <div class="row">比特币 — 减半行情判断</div>
+          <div class="row">Mastercard — Rental Coverage Dispute</div>
+          <div class="row">React — useEffect Cleanup</div>
         </div>
       </div>
     </div>
@@ -330,8 +329,7 @@
           <li>Threadsmith only acts on the conversations you select, and only after you confirm.</li>
         </ul>
         <p style="margin:18px 0 0;font-size:14px;color:var(--text-3)">
-          <!-- TODO: point to your hosted PRIVACY.md -->
-          Read the full <a href="#" style="color:var(--accent-a)">privacy policy</a>.
+          Read the full <a href="https://github.com/jonlai211/Threadsmith/blob/master/PRIVACY.md" style="color:var(--accent-a)">privacy policy</a>.
         </p>
       </div>
     </div>
@@ -367,14 +365,14 @@
 
   <footer>
     <div class="wrap foot-in">
-      <span class="logo">T</span>
+      <img class="logo" src="icon128.png" alt="Threadsmith logo">
       <span class="copy">Threadsmith — clear, searchable ChatGPT titles.</span>
       <span class="spacer"></span>
       <div class="foot-links">
-        <!-- TODO: replace # links below -->
+        <!-- TODO: replace # with the Chrome Web Store URL once published -->
         <a href="#">Add to Chrome</a>
-        <a href="#">GitHub</a>
-        <a href="#">Privacy</a>
+        <a href="https://github.com/jonlai211/Threadsmith">GitHub</a>
+        <a href="https://github.com/jonlai211/Threadsmith/blob/master/PRIVACY.md">Privacy</a>
       </div>
     </div>
   </footer>
