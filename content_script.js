@@ -71,21 +71,44 @@
       .filter((item) => item.id && item.title && item.title.length < 160 && !seen.has(item.id) && seen.add(item.id));
   }
 
-  function extractConversationText() {
-    const roleNodes = [...document.querySelectorAll("[data-message-author-role]")];
-    const messageNodes = roleNodes.length ? roleNodes : [...document.querySelectorAll('[data-testid^="conversation-turn-"]')];
+  function conversationScope(id = getSessionIdFromUrl(location.href)) {
+    if (!id) return null;
+    const escapedId = CSS.escape(id);
+    const taggedMessage = document.querySelector(`[data-chatgpt-selection-conversation-id="${escapedId}"]`);
+    const composer = document.querySelector(`[data-map-composer-conversation="${escapedId}"]`);
+    return taggedMessage?.closest("main") || composer?.closest("main") || null;
+  }
+
+  function extractConversationText(id = getSessionIdFromUrl(location.href)) {
+    const scope = conversationScope(id);
+    if (!scope) return [];
+
+    const roleNodes = [...scope.querySelectorAll("[data-message-author-role]")];
+    const testIdNodes = [...scope.querySelectorAll('[data-testid^="conversation-turn-"]')];
+    const searchUnitNodes = [...scope.querySelectorAll("[data-chatgpt-search-unit-key]")]
+      .filter((node) => /:(user|assistant)$/.test(node.getAttribute("data-chatgpt-search-unit-key") || ""));
+    const messageNodes = roleNodes.length ? roleNodes : (testIdNodes.length ? testIdNodes : searchUnitNodes);
     const seen = new Set();
     const messages = messageNodes
-      .map((node) => ({
-        role: node.getAttribute("data-message-author-role") || "",
-        text: cleanMessageText(node.innerText || node.textContent || "")
-      }))
+      .map((node) => {
+        const searchKey = node.getAttribute("data-chatgpt-search-unit-key") || "";
+        const role = node.getAttribute("data-message-author-role") || searchKey.match(/:(user|assistant)$/)?.[1] || "";
+        const contentNode = role === "user"
+          ? node.querySelector("[data-user-message-bubble]") || node
+          : role === "assistant"
+            ? node.querySelector('[data-markdown-text-style="assistant-message"]') || node
+            : node;
+        return {
+          role,
+          text: cleanMessageText(contentNode.innerText || contentNode.textContent || "")
+        };
+      })
       .filter((item) => item.text && item.text.length > 8 && !isBoilerplateText(item.text) && !seen.has(item.text) && seen.add(item.text))
       .slice(-14);
 
     if (messages.length) return messages;
 
-    const fallbackText = (document.querySelector("main")?.innerText || "")
+    const fallbackText = (scope.innerText || "")
       .split(/\n+/)
       .map((line) => cleanMessageText(line))
       .filter((line) => line && line.length > 8 && !isBoilerplateText(line))
@@ -95,7 +118,7 @@
   }
 
   async function openConversation(id, url) {
-    if (getSessionIdFromUrl(location.href) === id) return waitForConversationContent();
+    if (getSessionIdFromUrl(location.href) === id) return waitForConversationContent(id);
 
     const anchor = [...document.querySelectorAll('a[href*="/c/"]')].find((item) => getSessionIdFromUrl(item.href || "") === id);
     if (anchor) {
@@ -110,18 +133,23 @@
       if (getSessionIdFromUrl(location.href) === id) break;
       await sleep(250);
     }
-    return waitForConversationContent();
+    return waitForConversationContent(id);
   }
 
-  async function waitForConversationContent() {
+  async function waitForConversationContent(id = getSessionIdFromUrl(location.href)) {
     const started = Date.now();
     while (Date.now() - started < 12000) {
-      const messages = extractConversationText();
-      const thinking = /thinking|正在|生成中/i.test(document.body.innerText || "");
+      if (getSessionIdFromUrl(location.href) !== id) {
+        await sleep(250);
+        continue;
+      }
+      const scope = conversationScope(id);
+      const messages = extractConversationText(id);
+      const thinking = /thinking|正在|生成中/i.test(scope?.innerText || "");
       if (messages.length && !thinking) return messages;
       await sleep(350);
     }
-    return extractConversationText();
+    return extractConversationText(id);
   }
 
   function hostOf(url) {
@@ -142,7 +170,9 @@
 
   async function requestChatJson(payload, label) {
     const transport = config.resolveTransport(settings);
-    if (!transport.apiKey) throw new Error("Add a provider API key in Settings first.");
+    if (!config.isOllamaTransport(transport) && !transport.apiKey) {
+      throw new Error("Add a provider API key in Settings first.");
+    }
     if (!transport.baseURL) throw new Error("Set the provider base URL in Settings first.");
 
     let response;
@@ -187,9 +217,13 @@
       maxTokens: options.maxTokens || 450
     }, "Title");
 
-    const title = validators.normalizeAiTitle(parsed?.title);
+    const title = validators.extractTitleCandidate(parsed, content);
     if (!title) throw new Error(`Provider returned no title: ${content.slice(0, 120)}`);
-    if (validators.isBadTitle(title, language)) throw new Error(`Provider returned an unusable title: ${title}`);
+    if (validators.isBadTitle(title, language)) {
+      const error = new Error(`Provider returned an unusable title: ${title}`);
+      error.badTitle = title;
+      throw error;
+    }
     return title;
   }
 
@@ -225,9 +259,11 @@
       maxTokens: 700
     }, "Title repair");
 
-    const title = validators.normalizeAiTitle(parsed?.title);
+    const title = validators.extractTitleCandidate(parsed, content);
     if (!title || validators.isBadTitle(title, language)) {
-      throw new Error(`Title repair returned unusable title: ${title || content.slice(0, 120)}`);
+      const error = new Error(`Title repair returned unusable title: ${title || content.slice(0, 120)}`);
+      if (title) error.badTitle = title;
+      throw error;
     }
     return title;
   }
@@ -253,7 +289,13 @@
       // Provider HTTP errors (quota, auth, rate limit) won't be fixed by a
       // second call — surface them directly instead of burning a repair pass.
       if (error.status) throw error;
-      const repaired = await repairTitle(target.title, messages, "No usable title from first pass", error.message || String(error), language);
+      const repaired = await repairTitle(
+        target.title,
+        messages,
+        error.badTitle || "No usable title from first pass",
+        error.message || String(error),
+        language
+      );
       return {
         title: repaired,
         repaired: true,
@@ -270,7 +312,15 @@
       const anchor = [...document.querySelectorAll('a[href*="/c/"]')].find((item) => getSessionIdFromUrl(item.href || "") === id);
       anchor?.scrollIntoView({ block: "center", inline: "nearest" });
 
-      const button = document.querySelector(selector);
+      // Older ChatGPT builds exposed a conversation-id-specific trigger.
+      // Newer builds place a generic menu button inside the exact sidebar row.
+      const conversationRow =
+        anchor?.closest('[data-sidebar-chatgpt-conversation-key]') ||
+        anchor?.closest('[role="listitem"]') ||
+        anchor?.closest('[role="group"]');
+      const button =
+        document.querySelector(selector) ||
+        conversationRow?.querySelector('button[aria-haspopup="menu"]');
       if (button) {
         button.scrollIntoView({ block: "center", inline: "nearest" });
         return button;
@@ -327,6 +377,20 @@
     return null;
   }
 
+  async function waitForSavedConversationTitle(id, expectedTitle, timeout = 3500) {
+    const started = Date.now();
+    while (Date.now() - started < timeout) {
+      const anchor = [...document.querySelectorAll('a[href*="/c/"]')]
+        .find((item) => getSessionIdFromUrl(item.href || "") === id);
+      const currentTitle = normalizeText(
+        anchor?.getAttribute("aria-label") || anchor?.innerText || anchor?.textContent
+      );
+      if (currentTitle === expectedTitle) return true;
+      await sleep(100);
+    }
+    return false;
+  }
+
   async function renameInChatGpt(id, title, { validate = true } = {}) {
     const newTitle = normalizeText(title);
     if (!id) throw new Error("Open a saved ChatGPT conversation first.");
@@ -363,9 +427,19 @@
 
     editor.focus();
     setNativeInputValue(editor, newTitle);
-    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
-    editor.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
-    await sleep(900);
+    const saveButton = editor.closest("form")?.querySelector('button[type="submit"]');
+    if (saveButton) {
+      clickElement(saveButton);
+    } else {
+      // Compatibility with older ChatGPT builds that saved the inline editor
+      // with Enter and did not render a separate Save button.
+      editor.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
+      editor.dispatchEvent(new KeyboardEvent("keyup", { key: "Enter", code: "Enter", bubbles: true, cancelable: true }));
+    }
+
+    if (!(await waitForSavedConversationTitle(id, newTitle))) {
+      throw new Error("ChatGPT did not save the new conversation title.");
+    }
     return { id, title: newTitle };
   }
 
@@ -620,6 +694,7 @@
         }
         .row-status.ok    { background: rgba(16,185,129,.12); color: #34d399; border-color: rgba(16,185,129,.22); }
         .row-status.error { background: rgba(239,68,68,.12);  color: #f87171; border-color: rgba(239,68,68,.22); }
+        .row-status.review { background: rgba(245,158,11,.12); color: #f59e0b; border-color: rgba(245,158,11,.25); }
         .row-detail {
           grid-column: 1 / 4; grid-row: 3;
           display: none; padding-top: 4px;
@@ -814,7 +889,10 @@
     });
 
     root.querySelector(".sel-all").addEventListener("click", () => {
-      allRows(root).forEach((r) => (r.querySelector('input[type="checkbox"]').checked = true));
+      allRows(root).forEach((r) => {
+        const checkbox = r.querySelector('input[type="checkbox"]');
+        if (!checkbox.disabled) checkbox.checked = true;
+      });
       updateWorkflowCount(root);
     });
     root.querySelector(".sel-none").addEventListener("click", () => {
@@ -823,8 +901,26 @@
     });
     root.querySelector(".refresh-btn").addEventListener("click", () => refreshSessions(root));
     root.querySelector(".session-list").addEventListener("change", () => updateWorkflowCount(root));
-    root.querySelector(".session-list").addEventListener("input", () => {
-      const hasTitle = allRows(root).some((r) => normalizeText(r.querySelector(".title")?.value || ""));
+    root.querySelector(".session-list").addEventListener("input", (event) => {
+      if (event.target.matches(".title")) {
+        const row = event.target.closest(".row");
+        if (row?.dataset.review === "true") {
+          const title = validators.normalizeAiTitle(event.target.value);
+          if (title && !validators.isBadTitle(title, languageFor(title))) {
+            event.target.value = title;
+            delete row.dataset.review;
+            row.dataset.ready = "true";
+            const checkbox = row.querySelector('input[type="checkbox"]');
+            checkbox.disabled = false;
+            checkbox.checked = true;
+            setRowStatus(row, "Edited", "ok");
+            updateWorkflowCount(root);
+          }
+        }
+      }
+      const hasTitle = allRows(root).some((r) =>
+        r.dataset.review !== "true" && normalizeText(r.querySelector(".title")?.value || "")
+      );
       root.querySelector(".wf-apply").disabled = !hasTitle;
     });
 
@@ -938,7 +1034,8 @@
       setCardSummary(root, error.message || "Could not read settings.");
       return;
     }
-    if (!config.resolveTransport(settings).apiKey) {
+    const transport = config.resolveTransport(settings);
+    if (!config.isOllamaTransport(transport) && !transport.apiKey) {
       setCardSummary(root, "Add a provider API key in Settings first.");
       return;
     }
@@ -948,7 +1045,7 @@
     root.querySelector(".back-btn").disabled = true;
     root.querySelector(".refresh-btn").disabled = true;
 
-    let generated = 0, repaired = 0, skipped = 0;
+    let generated = 0, repaired = 0, review = 0, skipped = 0;
 
     for (const [index, row] of rows.entries()) {
       if (stopRequested) {
@@ -961,24 +1058,46 @@
       try {
         const suggestion = await generateTitleSuggestion(target);
         row.querySelector(".title").value = suggestion.title;
+        delete row.dataset.review;
         row.dataset.ready = "true";
         row.classList.add("has-title");
+        row.querySelector('input[type="checkbox"]').disabled = false;
         generated++;
         if (suggestion.repaired) repaired++;
         setRowStatus(row, suggestion.repaired ? "Repaired" : "Ready", "ok");
       } catch (error) {
-        skipped++;
-        setRowStatus(row, "Skipped", "error", error.message || "generation failed");
+        const candidate = validators.normalizeAiTitle(error.badTitle || "");
+        if (candidate) {
+          review++;
+          row.querySelector(".title").value = candidate;
+          row.dataset.review = "true";
+          row.dataset.ready = "false";
+          row.classList.add("has-title");
+          const checkbox = row.querySelector('input[type="checkbox"]');
+          checkbox.checked = false;
+          checkbox.disabled = true;
+          setRowStatus(
+            row,
+            "Needs review",
+            "review",
+            `Edit this into one object and one topic using at most one " - ". ${error.message || ""}`.trim()
+          );
+        } else {
+          skipped++;
+          setRowStatus(row, "Skipped", "error", error.message || "generation failed");
+        }
       }
     }
 
-    const hasTitle = allRows(root).some((r) => normalizeText(r.querySelector(".title")?.value || ""));
+    const hasTitle = allRows(root).some((r) =>
+      r.dataset.review !== "true" && normalizeText(r.querySelector(".title")?.value || "")
+    );
     root.querySelector(".wf-apply").disabled = !hasTitle;
     root.querySelector(".wf-stop").style.display = "none";
     root.querySelector(".wf-generate").disabled = false;
     root.querySelector(".back-btn").disabled = false;
     root.querySelector(".refresh-btn").disabled = false;
-    setCardSummary(root, `Done — ${generated} ready${repaired ? `, ${repaired} repaired` : ""}${skipped ? `, ${skipped} skipped` : ""}.`);
+    setCardSummary(root, `Done — ${generated} ready${repaired ? `, ${repaired} repaired` : ""}${review ? `, ${review} needs review` : ""}${skipped ? `, ${skipped} skipped` : ""}.`);
   }
 
   // After a rename, show "Renamed" plus the old title and an Undo control that
@@ -1018,7 +1137,9 @@
 
   async function applyPreview(rows, root) {
     stopRequested = false;
-    const readyRows = rows.filter((r) => normalizeText(r.querySelector(".title")?.value || ""));
+    const readyRows = rows.filter((r) =>
+      r.dataset.review !== "true" && normalizeText(r.querySelector(".title")?.value || "")
+    );
     if (!readyRows.length) { setCardSummary(root, "No titles to apply."); return; }
 
     // ChatGPT moves each renamed conversation to the top of the sidebar. Apply

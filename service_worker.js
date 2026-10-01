@@ -44,6 +44,8 @@ function choiceReasoning(choice) {
 
 async function postChatCompletions(transport, body, label) {
   const baseURL = String(transport.baseURL || "").replace(/\/+$/, "");
+  const headers = { "Content-Type": "application/json" };
+  if (transport.apiKey) headers.Authorization = `Bearer ${transport.apiKey}`;
   // Without a timeout a hung provider leaves the request pending forever, so the
   // UI stays stuck on "Reading…" and Stop (a between-iterations flag) can't
   // cancel the in-flight call. Abort after REQUEST_TIMEOUT_MS instead.
@@ -53,10 +55,7 @@ async function postChatCompletions(transport, body, label) {
   try {
     response = await fetch(`${baseURL}/chat/completions`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${transport.apiKey}`
-      },
+      headers,
       body: JSON.stringify(body),
       signal: controller.signal
     });
@@ -78,10 +77,10 @@ async function postChatCompletions(transport, body, label) {
 }
 
 async function requestChatJson({ transport, payload, label }) {
-  if (!transport?.apiKey) throw new Error(`${label}: add a provider API key first.`);
   if (!transport?.baseURL) throw new Error(`${label}: set the provider base URL first.`);
 
   const isOllama = isOllamaTransport(transport);
+  if (!isOllama && !transport?.apiKey) throw new Error(`${label}: add a provider API key first.`);
   const messages = isOllama ? prepareMessagesForOllama(payload.messages) : payload.messages;
   const maxTokens = payload.maxTokens || 450;
   const baseBody = {

@@ -29,7 +29,8 @@ Apply clear titles with one-click undo — and a tidied sidebar:
   you don't want, then apply — nothing is written without your confirmation.
 - **Undo.** Each applied rename can be restored to its original title from the list.
 - **Bring your own provider.** Works with any OpenAI-compatible API — DeepSeek,
-  OpenAI, OpenRouter, or a custom endpoint — using your own key.
+  OpenAI, OpenRouter, a custom endpoint, or local Ollama. Ollama does not need
+  an API key.
 - **Bilingual titles.** Simplified Chinese or English, or Auto to match each
   conversation. Proper nouns, brands, and technical names are kept as-is.
 - **Refresh on demand.** Scroll the sidebar to load more history (or start a new
@@ -64,6 +65,10 @@ requests host access from the toolbar popup (`optional_host_permissions`).
 
 The LLM request runs in the background service worker so it uses the extension's
 host permissions and is not blocked by the ChatGPT page's CORS policy.
+
+For local Ollama, use an OpenAI-compatible base URL such as
+`http://127.0.0.1:11434/v1`. Ollama must allow the extension origin through
+`OLLAMA_ORIGINS`.
 
 ## Install from source
 

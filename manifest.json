@@ -10,6 +10,7 @@
     "https://api.deepseek.com/*",
     "https://api.openai.com/*",
     "https://openrouter.ai/*",
+    "http://127.0.0.1/*",
     "http://100.91.8.86/*"
   ],
   "optional_host_permissions": ["https://*/*"],
